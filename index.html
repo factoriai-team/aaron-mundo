@@ -1098,7 +1098,10 @@
     const rellenoCarga = document.getElementById('relleno-carga');
     const textoCarga = document.getElementById('texto-carga');
 
-    overlay.addEventListener('click', async () => {
+    let arrancando = false;
+    async function arrancarJuego() {
+      if (arrancando) return;        // evita dobles disparos (toques/clics rápidos)
+      arrancando = true;
       overlay.style.display = 'none';
       cargando.classList.add('activo');
 
@@ -1131,7 +1134,17 @@
       mundoListo = true;
       // Guardar el mundo recién creado/cargado
       guardarMundo(true);
-    });
+      arrancando = false;
+    }
+
+    overlay.addEventListener('click', arrancarJuego);
+
+    // Auto-arranque: si ya hay un mundo guardado, saltamos la pantalla de bienvenida
+    // (esto cubre el caso de recargas accidentales en iPad/Safari, descarga de pestañas, etc.)
+    if (hayGuardado()) {
+      // Pequeño delay para que el navegador termine de pintar la primera vez
+      setTimeout(arrancarJuego, 80);
+    }
 
     // ============================================
     // CHAT / COMANDOS
