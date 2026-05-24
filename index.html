@@ -1,0 +1,2015 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mundo de Aaron 🧱</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #87ceeb; font-family: Arial, sans-serif; }
+    canvas { display: block; cursor: crosshair; }
+
+    #hud {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none; z-index: 10;
+    }
+
+    #crosshair {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 24px; height: 24px;
+    }
+    #crosshair::before, #crosshair::after {
+      content: ''; position: absolute;
+      background: #fff; mix-blend-mode: difference;
+    }
+    #crosshair::before { top: 11px; left: 0; width: 24px; height: 2px; }
+    #crosshair::after  { left: 11px; top: 0; height: 24px; width: 2px; }
+
+    #hotbar {
+      position: absolute; bottom: 15px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; gap: 4px;
+      background: rgba(0,0,0,0.6); padding: 6px;
+      border-radius: 8px; border: 2px solid #fff;
+      max-width: 95vw; overflow-x: auto;
+    }
+    .slot {
+      position: relative; width: 54px; height: 54px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.1);
+      border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 4px; color: #fff;
+      font-size: 0.62em; text-align: center; gap: 2px;
+      flex-shrink: 0;
+    }
+    .slot.activo { border-color: #ffeb3b; box-shadow: 0 0 12px #ffeb3b; }
+    .slot .icono {
+      width: 26px; height: 26px;
+      image-rendering: pixelated;
+      border: 2px solid rgba(0,0,0,0.4);
+    }
+    .slot .num {
+      position: absolute; top: 1px; left: 3px;
+      background: #000; color: #ffeb3b;
+      font-size: 0.7em; padding: 1px 4px; border-radius: 3px;
+    }
+
+    #overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: #fff; text-align: center;
+      z-index: 100; cursor: pointer; padding: 20px;
+    }
+    #overlay h1 {
+      font-size: 2.5em; color: #ffeb3b;
+      text-shadow: 3px 3px 0 #000; margin-bottom: 15px;
+    }
+    #overlay .grande {
+      background: #4caf50; padding: 15px 40px;
+      border: 4px solid #fff; border-radius: 12px;
+      font-size: 1.4em; margin: 15px;
+      box-shadow: 0 6px 0 #1b5e20;
+    }
+    #overlay .controles {
+      background: rgba(0,0,0,0.5); padding: 15px 25px;
+      border-radius: 10px; max-width: 580px;
+      line-height: 1.7; font-size: 0.95em;
+    }
+    #overlay .controles b { color: #ffeb3b; }
+
+    #cargando {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: #fff; z-index: 200; font-size: 1.5em;
+    }
+    #cargando.activo { display: flex; }
+    #barra-carga {
+      width: 60vw; max-width: 400px; height: 24px;
+      background: rgba(255,255,255,0.2);
+      border: 2px solid #fff; border-radius: 12px;
+      overflow: hidden; margin-top: 15px;
+    }
+    #relleno-carga {
+      width: 0%; height: 100%;
+      background: linear-gradient(90deg, #4caf50, #8bc34a);
+      transition: width 0.1s;
+    }
+
+    #titulo-arriba {
+      position: absolute; top: 8px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.5); color: #ffeb3b;
+      padding: 5px 14px; border-radius: 8px;
+      font-weight: bold; font-size: 0.85em;
+    }
+
+    #info-pos {
+      position: absolute; top: 40px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.4); color: #fff;
+      padding: 3px 10px; border-radius: 6px;
+      font-size: 0.75em; font-family: monospace;
+    }
+
+    #ayuda {
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(0,0,0,0.5); color: #fff;
+      padding: 8px 12px; border-radius: 8px;
+      font-size: 0.72em; line-height: 1.5; max-width: 220px;
+    }
+    #ayuda b { color: #ffeb3b; }
+
+    #chat {
+      position: absolute; bottom: 80px; left: 50%;
+      transform: translateX(-50%);
+      width: min(700px, 90vw);
+      background: rgba(0,0,0,0.85);
+      border: 2px solid #fff; border-radius: 8px;
+      padding: 8px; display: none;
+      pointer-events: auto;
+      font-family: 'Courier New', monospace;
+    }
+    #chat.activo { display: block; }
+    #chat-historial {
+      max-height: 220px; overflow-y: auto;
+      color: #fff; font-size: 0.9em;
+      margin-bottom: 6px; padding: 4px;
+    }
+    #chat-historial .linea { padding: 1px 0; }
+    #chat-historial .info { color: #aaa; }
+    #chat-historial .ok   { color: #81c784; }
+    #chat-historial .err  { color: #e57373; }
+    #chat-historial .yo   { color: #ffeb3b; }
+    #chat-input {
+      width: 100%; background: rgba(255,255,255,0.1);
+      border: 1px solid #fff; color: #fff;
+      padding: 6px 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 1em; outline: none;
+    }
+
+    #aviso-error {
+      position: fixed; top: 0; left: 0; right: 0;
+      background: #d32f2f; color: white; padding: 12px;
+      text-align: center; z-index: 9999;
+      font-size: 0.9em; display: none;
+    }
+
+    /* ===== EDITOR DE TEXTURAS ===== */
+    #editor {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: none; align-items: center; justify-content: center;
+      z-index: 300;
+    }
+    #editor.activo { display: flex; }
+    #editor-panel {
+      background: #2c2c3e;
+      border: 3px solid #ffeb3b;
+      border-radius: 12px;
+      padding: 18px;
+      color: white;
+      max-width: 95vw;
+      max-height: 95vh;
+      overflow-y: auto;
+      display: flex; flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+    #editor-panel h2 {
+      color: #ffeb3b;
+      text-align: center;
+      font-size: 1.4em;
+    }
+    .ed-fila {
+      display: flex; gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .ed-fila label { font-size: 0.9em; }
+    .ed-fila select {
+      background: #1a1a2e;
+      color: #fff;
+      border: 2px solid #fff;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.95em;
+    }
+    .ed-cara-btn {
+      background: #444;
+      color: #fff;
+      border: 2px solid #888;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+    .ed-cara-btn.activa {
+      background: #4caf50;
+      border-color: #ffeb3b;
+    }
+    #ed-lienzo {
+      background: #fff;
+      image-rendering: pixelated;
+      border: 3px solid #fff;
+      cursor: crosshair;
+      touch-action: none;
+    }
+    #ed-paleta-colores {
+      display: grid;
+      grid-template-columns: repeat(8, 28px);
+      gap: 4px;
+      max-width: 100%;
+    }
+    .ed-color {
+      width: 28px; height: 28px;
+      border: 2px solid rgba(255,255,255,0.4);
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .ed-color.activo {
+      border-color: #ffeb3b;
+      transform: scale(1.15);
+      box-shadow: 0 0 8px #ffeb3b;
+    }
+    .ed-color.borrador {
+      background:
+        linear-gradient(45deg, #999 25%, transparent 25%),
+        linear-gradient(-45deg, #999 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #999 75%),
+        linear-gradient(-45deg, transparent 75%, #999 75%);
+      background-size: 8px 8px;
+      background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+      background-color: #fff;
+    }
+    #ed-color-picker {
+      width: 40px; height: 40px;
+      border: 2px solid #fff;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .ed-accion {
+      background: #555;
+      color: #fff;
+      border: 2px solid #fff;
+      border-radius: 6px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 0.95em;
+      font-weight: bold;
+    }
+    .ed-accion.principal {
+      background: #4caf50;
+      box-shadow: 0 4px 0 #1b5e20;
+    }
+    .ed-accion.principal:active { transform: translateY(4px); box-shadow: 0 0 0 #1b5e20; }
+    .ed-accion.cerrar {
+      background: #c62828;
+      box-shadow: 0 4px 0 #7f0000;
+    }
+    .ed-accion.cerrar:active { transform: translateY(4px); box-shadow: 0 0 0 #7f0000; }
+    #ed-preview {
+      display: flex; gap: 8px;
+      align-items: center;
+      font-size: 0.85em;
+      color: #ccc;
+    }
+    #ed-preview canvas {
+      image-rendering: pixelated;
+      border: 2px solid #888;
+    }
+  </style>
+</head>
+<body>
+  <div id="aviso-error"></div>
+  <canvas id="lienzo"></canvas>
+
+  <div id="hud">
+    <div id="titulo-arriba">🧱 Mundo de Aaron — Mundo grande 🧱</div>
+    <div id="info-pos">x: 0 · y: 0 · z: 0</div>
+    <div id="ayuda">
+      <b>W A S D</b> · moverse<br>
+      <b>← →</b> · girar<br>
+      <b>↑ ↓</b> · mirar<br>
+      <b>Espacio</b> · saltar/subir<br>
+      <b>Mayús</b> · bajar (vuelo)<br>
+      <b>Clic</b> · romper<br>
+      <b>Mayús+Clic</b> · poner<br>
+      <b>1-9</b> · elegir bloque<br>
+      <b>T</b> o <b>/</b> · comandos<br>
+      <b>E</b> · 🎨 editor texturas
+    </div>
+    <div id="crosshair"></div>
+    <div id="hotbar"></div>
+    <div id="chat">
+      <div id="chat-historial"></div>
+      <input id="chat-input" placeholder="Escribe /help para ver los comandos">
+    </div>
+  </div>
+
+  <div id="overlay">
+    <h1>🧱 Mundo de Aaron</h1>
+    <div class="controles">
+      🎮 <b>Controles</b><br>
+      <b>W A S D</b> = caminar · <b>Espacio</b> = saltar (o subir volando)<br>
+      <b>Flechas</b> = girar y mirar<br>
+      <b>Clic</b> = romper · <b>Mayús+Clic</b> = poner<br>
+      <b>1-9</b> = elegir bloque · <b>T</b> o <b>/</b> = consola<br>
+      <br>
+      🌍 Mundo gigante con <b>playas, bosques, montañas y nieve</b><br>
+      💧 Hay <b>agua</b> en los lagos<br>
+      💎 <b>Diamantes</b> escondidos en las montañas
+    </div>
+    <div class="grande">▶ HAZ CLIC PARA EMPEZAR</div>
+  </div>
+
+  <div id="cargando">
+    <div>🌍 Generando mundo...</div>
+    <div id="barra-carga"><div id="relleno-carga"></div></div>
+    <div id="texto-carga" style="font-size:0.7em;margin-top:8px;color:#aaa"></div>
+  </div>
+
+  <!-- ===== EDITOR DE TEXTURAS ===== -->
+  <div id="editor">
+    <div id="editor-panel">
+      <h2>🎨 Editor de Texturas — Pixel Art</h2>
+
+      <div class="ed-fila">
+        <label>Bloque:
+          <select id="ed-bloque"></select>
+        </label>
+        <button class="ed-cara-btn activa" data-cara="arriba">⬆ Arriba</button>
+        <button class="ed-cara-btn" data-cara="lado">↔ Lados</button>
+        <button class="ed-cara-btn" data-cara="abajo">⬇ Abajo</button>
+      </div>
+
+      <canvas id="ed-lienzo" width="384" height="384"></canvas>
+
+      <div id="ed-preview">
+        <span>Vista real:</span>
+        <canvas id="ed-mini" width="16" height="16" style="width:32px;height:32px"></canvas>
+        <canvas id="ed-mini-grande" width="16" height="16" style="width:64px;height:64px"></canvas>
+      </div>
+
+      <div class="ed-fila">
+        <span style="font-size:0.85em">Color:</span>
+        <input type="color" id="ed-color-picker" value="#5b9c3a">
+        <div id="ed-paleta-colores"></div>
+      </div>
+
+      <div class="ed-fila">
+        <button class="ed-accion" id="ed-limpiar">🗑️ Limpiar</button>
+        <button class="ed-accion" id="ed-rellenar">🪣 Rellenar</button>
+        <button class="ed-accion" id="ed-aleatorio">🎲 Aleatorio</button>
+        <button class="ed-accion principal" id="ed-aplicar">✓ APLICAR</button>
+        <button class="ed-accion cerrar" id="ed-cerrar">✕ Cerrar</button>
+      </div>
+
+      <div style="font-size:0.75em; color:#aaa; text-align:center; max-width:380px">
+        Pulsa o arrastra sobre la cuadrícula para pintar. Clic derecho = borrar.<br>
+        Pulsa <b>E</b> en el juego para abrir/cerrar el editor.
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+    }
+  }
+  </script>
+
+  <script type="module">
+    window.addEventListener('error', (e) => {
+      const a = document.getElementById('aviso-error');
+      a.textContent = '⚠️ ' + (e.message || e.error || e);
+      a.style.display = 'block';
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      const a = document.getElementById('aviso-error');
+      a.textContent = '⚠️ ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+      a.style.display = 'block';
+    });
+
+    import * as THREE from 'three';
+
+    // ============================================
+    // RUIDO (para terreno natural)
+    // ============================================
+    // Hash con buena distribución
+    function hash2(x, z) {
+      let h = (x | 0) * 374761393 + (z | 0) * 668265263;
+      h = (h ^ (h >> 13)) >>> 0;
+      h = (h * 1274126177) >>> 0;
+      return ((h ^ (h >> 16)) >>> 0) / 4294967295;
+    }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function suavizar(t) { return t * t * (3 - 2 * t); }
+
+    function ruidoValor(x, z) {
+      const xi = Math.floor(x), zi = Math.floor(z);
+      const xf = x - xi, zf = z - zi;
+      const v00 = hash2(xi,   zi);
+      const v10 = hash2(xi+1, zi);
+      const v01 = hash2(xi,   zi+1);
+      const v11 = hash2(xi+1, zi+1);
+      const u = suavizar(xf), v = suavizar(zf);
+      return lerp(lerp(v00, v10, u), lerp(v01, v11, u), v);
+    }
+
+    // Combinación de varias escalas (fractal) → terreno natural
+    function ruidoTerreno(x, z, escala) {
+      let total = 0, amplitud = 1, frecuencia = 1, maxValor = 0;
+      for (let i = 0; i < 4; i++) {
+        total += ruidoValor(x * escala * frecuencia, z * escala * frecuencia) * amplitud;
+        maxValor += amplitud;
+        amplitud *= 0.5;
+        frecuencia *= 2;
+      }
+      return total / maxValor;
+    }
+
+    // ============================================
+    // TEXTURAS
+    // ============================================
+    function elegir(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    function crearTextura(generador) {
+      const cv = document.createElement('canvas');
+      cv.width = 16; cv.height = 16;
+      generador(cv.getContext('2d'));
+      const tex = new THREE.CanvasTexture(cv);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    const cespedArriba = crearTextura(cx => {
+      const verdes = ['#5b9c3a','#69b245','#79c252','#4d8330','#85d066','#3f7228'];
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        cx.fillStyle = elegir(verdes); cx.fillRect(x, y, 1, 1);
+      }
+    });
+    const tierra = crearTextura(cx => {
+      const t = ['#8b6238','#7a5429','#6b4520','#9a7244','#5d3a1c','#a17b50'];
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        cx.fillStyle = elegir(t); cx.fillRect(x, y, 1, 1);
+      }
+    });
+    const cespedLado = crearTextura(cx => {
+      const m = ['#8b6238','#7a5429','#6b4520','#9a7244','#5d3a1c'];
+      const v = ['#5b9c3a','#69b245','#79c252','#4d8330'];
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        cx.fillStyle = elegir(m); cx.fillRect(x, y, 1, 1);
+      }
+      for (let x = 0; x < 16; x++) {
+        const h = 2 + Math.floor(Math.random() * 3);
+        for (let y = 0; y < h; y++) { cx.fillStyle = elegir(v); cx.fillRect(x, y, 1, 1); }
+      }
+    });
+    const piedra = crearTextura(cx => {
+      const t = ['#787878','#8a8a8a','#6e6e6e','#959595','#a0a0a0','#5e5e5e'];
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        cx.fillStyle = elegir(t); cx.fillRect(x, y, 1, 1);
+      }
+      for (let i = 0; i < 6; i++) {
+        cx.fillStyle = '#4a4a4a';
+        cx.fillRect(Math.floor(Math.random()*16), Math.floor(Math.random()*16), 1, 1);
+      }
+    });
+    const troncoLado = crearTextura(cx => {
+      const m = ['#5d3e23','#6e4a2b','#4e321c','#7b5430','#3e2917'];
+      for (let x = 0; x < 16; x++) {
+        const color = elegir(m);
+        for (let y = 0; y < 16; y++) {
+          cx.fillStyle = Math.random() < 0.15 ? elegir(m) : color;
+          cx.fillRect(x, y, 1, 1);
+        }
+      }
+      for (let i = 0; i < 4; i++) {
+        cx.fillStyle = '#2d1d10';
+        cx.fillRect(Math.floor(Math.random()*16), 0, 1, 16);
+      }
+    });
+    const troncoArriba = crearTextura(cx => {
+      cx.fillStyle = '#a37b4a'; cx.fillRect(0,0,16,16);
+      const c = ['#7b5430','#9a6f3e','#5d3e23','#a98054'];
+      for (let r = 1; r < 8; r++) {
+        cx.strokeStyle = c[r % c.length]; cx.lineWidth = 1;
+        cx.beginPath(); cx.arc(8, 8, r, 0, Math.PI * 2); cx.stroke();
+      }
+      cx.fillStyle = '#4e321c'; cx.fillRect(7,7,2,2);
+    });
+    const arena = crearTextura(cx => {
+      const t = ['#f0d97a','#e8cf66','#f6e394','#d9bd54','#fae8a3'];
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        cx.fillStyle = elegir(t); cx.fillRect(x, y, 1, 1);
+      }
+    });
+    const hojas = crearTextura(cx => {
+      const v = ['#2e7d32','#388e3c','#43a047','#1b5e20','#4caf50','#66bb6a'];
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        if (Math.random() < 0.1) cx.fillStyle = 'rgba(0,0,0,0)';
+        else cx.fillStyle = elegir(v);
+        cx.fillRect(x, y, 1, 1);
+      }
+    });
+    const tablones = crearTextura(cx => {
+      const c = ['#bc8a52','#a87340','#cb9a64','#8f6432'];
+      for (let i = 0; i < 4; i++) {
+        const tono = elegir(c);
+        for (let y = i*4; y < i*4+4; y++) for (let x = 0; x < 16; x++) {
+          cx.fillStyle = Math.random() < 0.2 ? elegir(c) : tono;
+          cx.fillRect(x, y, 1, 1);
+        }
+        cx.fillStyle = '#4e321c'; cx.fillRect(0, i*4, 16, 1);
+      }
+    });
+    const nieve = crearTextura(cx => {
+      const t = ['#ffffff','#f0f0f8','#e2e2e8','#fafaff'];
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        cx.fillStyle = elegir(t); cx.fillRect(x, y, 1, 1);
+      }
+      for (let i = 0; i < 3; i++) {
+        cx.fillStyle = '#b8c0d0';
+        cx.fillRect(Math.floor(Math.random()*16), Math.floor(Math.random()*16), 1, 1);
+      }
+    });
+    const diamante = crearTextura(cx => {
+      const t = ['#787878','#6e6e6e','#5e5e5e','#8a8a8a'];
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        cx.fillStyle = elegir(t); cx.fillRect(x, y, 1, 1);
+      }
+      const diamantes = ['#4dd0e1','#26c6da','#00bcd4','#80deea'];
+      for (let i = 0; i < 8; i++) {
+        const x = 2 + Math.floor(Math.random() * 12);
+        const y = 2 + Math.floor(Math.random() * 12);
+        cx.fillStyle = elegir(diamantes);
+        cx.fillRect(x, y, 1, 1);
+        cx.fillRect(x+1, y, 1, 1);
+        cx.fillRect(x, y+1, 1, 1);
+      }
+    });
+    const grava = crearTextura(cx => {
+      const t = ['#9e9e9e','#757575','#bdbdbd','#616161','#8e8e8e'];
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        cx.fillStyle = elegir(t); cx.fillRect(x, y, 1, 1);
+      }
+      for (let i = 0; i < 15; i++) {
+        cx.fillStyle = '#424242';
+        cx.fillRect(Math.floor(Math.random()*16), Math.floor(Math.random()*16), 1, 1);
+      }
+    });
+
+    // ============================================
+    // ESCENA
+    // ============================================
+    const escena = new THREE.Scene();
+    escena.background = new THREE.Color(0x87ceeb);
+    escena.fog = new THREE.Fog(0x87ceeb, 30, 110);
+
+    const camara = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 250);
+    camara.position.set(32, 20, 80);
+    camara.rotation.order = 'YXZ';
+
+    const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('lienzo'), antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const ambiental = new THREE.AmbientLight(0xffffff, 0.55);
+    escena.add(ambiental);
+    const sol = new THREE.DirectionalLight(0xffffff, 0.9);
+    sol.position.set(40, 60, 30);
+    escena.add(sol);
+
+    // ============================================
+    // TIPOS DE BLOQUES
+    // ============================================
+    const BLOQUES = {
+      cesped:   { arriba: cespedArriba, lado: cespedLado, abajo: tierra,       nombre: 'Césped',   transparente: false },
+      tierra:   { arriba: tierra,       lado: tierra,     abajo: tierra,       nombre: 'Tierra',   transparente: false },
+      piedra:   { arriba: piedra,       lado: piedra,     abajo: piedra,       nombre: 'Piedra',   transparente: false },
+      tronco:   { arriba: troncoArriba, lado: troncoLado, abajo: troncoArriba, nombre: 'Tronco',   transparente: false },
+      tablones: { arriba: tablones,     lado: tablones,   abajo: tablones,     nombre: 'Tablones', transparente: false },
+      arena:    { arriba: arena,        lado: arena,      abajo: arena,        nombre: 'Arena',    transparente: false },
+      hojas:    { arriba: hojas,        lado: hojas,      abajo: hojas,        nombre: 'Hojas',    transparente: true  },
+      nieve:    { arriba: nieve,        lado: nieve,      abajo: nieve,        nombre: 'Nieve',    transparente: false },
+      diamante: { arriba: diamante,     lado: diamante,   abajo: diamante,     nombre: 'Diamante', transparente: false },
+      grava:    { arriba: grava,        lado: grava,      abajo: grava,        nombre: 'Grava',    transparente: false },
+    };
+    const TIPOS = Object.keys(BLOQUES);
+    const TIPOS_VISIBLES = ['cesped','tierra','piedra','tronco','tablones','arena','hojas','nieve','diamante']; // primeros 9 para la hotbar
+
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+
+    const materialesCache = {};
+    function materialesDe(tipo) {
+      if (materialesCache[tipo]) return materialesCache[tipo];
+      const b = BLOQUES[tipo];
+      const opt = { transparent: b.transparente, alphaTest: b.transparente ? 0.4 : 0 };
+      const lado   = new THREE.MeshLambertMaterial({ map: b.lado,   ...opt });
+      const arriba = new THREE.MeshLambertMaterial({ map: b.arriba, ...opt });
+      const abajo  = new THREE.MeshLambertMaterial({ map: b.abajo,  ...opt });
+      materialesCache[tipo] = [lado, lado, arriba, abajo, lado, lado];
+      return materialesCache[tipo];
+    }
+
+    // ============================================
+    // DATOS DEL MUNDO (tipo por cada bloque) + MALLAS (solo expuestos)
+    // ============================================
+    const datos = new Map();  // clave -> tipo
+    const mallas = new Map(); // clave -> Mesh
+    function clave(x,y,z) { return x+','+y+','+z; }
+
+    const VECINOS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+
+    function expuesto(x, y, z) {
+      for (const [dx,dy,dz] of VECINOS) {
+        if (!datos.has(clave(x+dx, y+dy, z+dz))) return true;
+      }
+      return false;
+    }
+
+    function crearMalla(tipo, x, y, z) {
+      const malla = new THREE.Mesh(geo, materialesDe(tipo));
+      malla.position.set(x + 0.5, y + 0.5, z + 0.5);
+      malla.userData = { tipo, x, y, z };
+      mallas.set(clave(x,y,z), malla);
+      escena.add(malla);
+    }
+
+    function ponerBloque(tipo, x, y, z) {
+      if (!BLOQUES[tipo]) return false;
+      x = Math.floor(x); y = Math.floor(y); z = Math.floor(z);
+      const k = clave(x,y,z);
+      if (datos.has(k)) return false;
+      datos.set(k, tipo);
+      crearMalla(tipo, x, y, z);
+      marcarSucio();
+      return true;
+    }
+
+    function quitarBloque(x, y, z) {
+      x = Math.floor(x); y = Math.floor(y); z = Math.floor(z);
+      const k = clave(x,y,z);
+      if (!datos.has(k)) return false;
+      datos.delete(k);
+      const m = mallas.get(k);
+      if (m) { escena.remove(m); mallas.delete(k); }
+      // Vecinos que existen pero no tienen malla, ahora pueden estar expuestos
+      for (const [dx,dy,dz] of VECINOS) {
+        const nx = x+dx, ny = y+dy, nz = z+dz;
+        const nk = clave(nx, ny, nz);
+        if (datos.has(nk) && !mallas.has(nk)) {
+          if (expuesto(nx, ny, nz)) crearMalla(datos.get(nk), nx, ny, nz);
+        }
+      }
+      marcarSucio();
+      return true;
+    }
+
+    function hayBloqueEn(x, y, z) {
+      return datos.has(clave(Math.floor(x), Math.floor(y), Math.floor(z)));
+    }
+
+    function limpiarMundo() {
+      for (const m of mallas.values()) escena.remove(m);
+      datos.clear(); mallas.clear();
+      if (mallaAgua) { escena.remove(mallaAgua); mallaAgua = null; }
+    }
+
+    // ============================================
+    // GUARDADO / CARGA DEL MUNDO
+    // ============================================
+    let mundoListo = false;
+    let mundoSucio = false;
+    let temporizadorGuardado = null;
+
+    function marcarSucio() {
+      if (!mundoListo) return;
+      mundoSucio = true;
+      if (temporizadorGuardado) clearTimeout(temporizadorGuardado);
+      // Guardar 2 segundos después del último cambio
+      temporizadorGuardado = setTimeout(() => {
+        if (mundoSucio) guardarMundo(true);
+      }, 2000);
+    }
+
+    function crearAgua() {
+      if (mallaAgua) return;
+      const matAgua = new THREE.MeshLambertMaterial({
+        color: 0x2196f3, transparent: true, opacity: 0.65,
+      });
+      const geoAgua = new THREE.PlaneGeometry(TAM, TAM);
+      mallaAgua = new THREE.Mesh(geoAgua, matAgua);
+      mallaAgua.rotation.x = -Math.PI / 2;
+      mallaAgua.position.set(TAM/2, NIVEL_MAR + 0.9, TAM/2);
+      escena.add(mallaAgua);
+    }
+
+    function guardarMundo(silencioso = false) {
+      try {
+        // Agrupamos por tipo para que ocupe MUCHO menos
+        const grupos = {};
+        for (const [k, t] of datos.entries()) {
+          if (!grupos[t]) grupos[t] = [];
+          grupos[t].push(k);
+        }
+        const estado = {
+          version: 1,
+          semilla: SEMILLA,
+          grupos: grupos,
+          camara: {
+            x: camara.position.x, y: camara.position.y, z: camara.position.z,
+            yaw, pitch,
+          },
+          modoCreativo,
+          bloqueElegido,
+          fecha: Date.now(),
+        };
+        const json = JSON.stringify(estado);
+        localStorage.setItem('aaron-mundo', json);
+        mundoSucio = false;
+        if (!silencioso) log('💾 Mundo guardado (' + datos.size + ' bloques, ' + Math.round(json.length/1024) + ' KB)', 'ok');
+        return true;
+      } catch (err) {
+        log('⚠️ Error guardando: ' + err.message, 'err');
+        return false;
+      }
+    }
+
+    function hayGuardado() {
+      try { return !!localStorage.getItem('aaron-mundo'); } catch { return false; }
+    }
+
+    async function cargarMundo(actualizarProgreso) {
+      try {
+        const raw = localStorage.getItem('aaron-mundo');
+        if (!raw) return false;
+        const estado = JSON.parse(raw);
+        if (estado.version !== 1) return false;
+
+        limpiarMundo();
+        SEMILLA = estado.semilla || SEMILLA;
+
+        // Recrear datos
+        let total = 0;
+        for (const tipo in estado.grupos) total += estado.grupos[tipo].length;
+        let hechos = 0;
+
+        for (const tipo in estado.grupos) {
+          for (const k of estado.grupos[tipo]) {
+            datos.set(k, tipo);
+            hechos++;
+          }
+          if (actualizarProgreso) {
+            actualizarProgreso(hechos / total * 0.5);
+            await new Promise(r => setTimeout(r, 0));
+          }
+        }
+
+        // Crear mallas solo de los expuestos
+        let i = 0;
+        const claves = Array.from(datos.keys());
+        for (const k of claves) {
+          const [x,y,z] = k.split(',').map(Number);
+          if (expuesto(x,y,z)) crearMalla(datos.get(k), x, y, z);
+          i++;
+          if (i % 2000 === 0 && actualizarProgreso) {
+            actualizarProgreso(0.5 + (i / claves.length) * 0.5);
+            await new Promise(r => setTimeout(r, 0));
+          }
+        }
+
+        // Cámara
+        if (estado.camara) {
+          camara.position.set(estado.camara.x, estado.camara.y, estado.camara.z);
+          yaw = estado.camara.yaw || 0;
+          pitch = estado.camara.pitch || -0.3;
+          aplicarRotacion();
+        }
+        if (typeof estado.modoCreativo === 'boolean') modoCreativo = estado.modoCreativo;
+        if (estado.bloqueElegido && TIPOS.includes(estado.bloqueElegido)) {
+          bloqueElegido = estado.bloqueElegido;
+          actualizarHotbar();
+        }
+
+        // Agua
+        crearAgua();
+        if (actualizarProgreso) actualizarProgreso(1);
+
+        const dias = Math.floor((Date.now() - (estado.fecha || Date.now())) / (1000 * 60 * 60 * 24));
+        return { dias };
+      } catch (err) {
+        log('⚠️ Error cargando: ' + err.message, 'err');
+        return false;
+      }
+    }
+
+    // Guardar al cerrar la pestaña/ventana
+    window.addEventListener('beforeunload', () => {
+      if (mundoListo && mundoSucio) guardarMundo(true);
+    });
+    // Guardar al cambiar de pestaña (por si cierra el navegador)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && mundoListo && mundoSucio) guardarMundo(true);
+    });
+
+    // ============================================
+    // GENERAR MUNDO (con biomas)
+    // ============================================
+    const TAM = 64;          // 64x64 = 16 veces más grande
+    const NIVEL_MAR = 4;
+    let SEMILLA = Math.floor(Math.random() * 10000);
+    let mallaAgua = null;
+
+    function alturaDe(x, z) {
+      // Combinación de varias escalas
+      const grande  = ruidoTerreno(x + SEMILLA, z + SEMILLA, 0.018) * 18;
+      const medio   = ruidoTerreno(x + SEMILLA, z + SEMILLA, 0.06) * 5;
+      const detalle = ruidoValor((x + SEMILLA) * 0.2, (z + SEMILLA) * 0.2) * 1.5;
+      return Math.floor(grande + medio + detalle);
+    }
+
+    function biomaDe(x, z) {
+      const t = ruidoTerreno(x + SEMILLA + 5000, z + SEMILLA + 5000, 0.02);
+      const f = ruidoTerreno(x + SEMILLA + 9000, z + SEMILLA + 9000, 0.025);
+      if (t < 0.32) return 'desierto';
+      if (f > 0.65) return 'bosque';
+      return 'pradera';
+    }
+
+    function tipoEnAltura(y, altura, bioma) {
+      // Por encima del nivel del mar
+      if (y === altura) {
+        if (altura <= NIVEL_MAR) return 'arena';        // playa
+        if (altura >= 16) return 'nieve';                // cumbres nevadas
+        if (altura >= 12) return 'piedra';               // montaña
+        if (bioma === 'desierto') return 'arena';
+        return 'cesped';
+      }
+      if (y >= altura - 2) {
+        if (bioma === 'desierto' || altura <= NIVEL_MAR) return 'arena';
+        return 'tierra';
+      }
+      // Diamantes raros en zonas profundas
+      if (y <= 2 && Math.random() < 0.012) return 'diamante';
+      if (Math.random() < 0.04) return 'grava';
+      return 'piedra';
+    }
+
+    async function generarMundo(actualizar) {
+      const total = TAM * TAM;
+      let hechos = 0;
+      const arboles = [];
+      // Fase 1: llenar datos
+      for (let x = 0; x < TAM; x++) {
+        for (let z = 0; z < TAM; z++) {
+          const altura = alturaDe(x, z);
+          const bioma = biomaDe(x, z);
+          for (let y = 0; y <= altura; y++) {
+            datos.set(clave(x, y, z), tipoEnAltura(y, altura, bioma));
+          }
+          // Árbol: solo sobre césped, no en bordes, con baja probabilidad
+          if (altura > NIVEL_MAR && altura < 12 && bioma !== 'desierto') {
+            if (x > 2 && x < TAM-3 && z > 2 && z < TAM-3 && Math.random() < 0.025) {
+              arboles.push({ x, z, suelo: altura });
+            }
+          }
+          hechos++;
+        }
+        // ceder cada fila para que se vea el progreso
+        if (x % 8 === 0) {
+          actualizar(hechos / total * 0.7);
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+
+      // Fase 2: añadir árboles
+      for (const a of arboles) {
+        const alto = 4 + Math.floor(Math.random() * 2);
+        for (let i = 1; i <= alto; i++) datos.set(clave(a.x, a.suelo + i, a.z), 'tronco');
+        for (let dx = -2; dx <= 2; dx++) {
+          for (let dz = -2; dz <= 2; dz++) {
+            for (let dy = alto - 1; dy <= alto; dy++) {
+              if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;
+              const k = clave(a.x + dx, a.suelo + dy, a.z + dz);
+              if (!datos.has(k)) datos.set(k, 'hojas');
+            }
+          }
+        }
+        for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+          const k = clave(a.x + dx, a.suelo + alto + 1, a.z + dz);
+          if (!datos.has(k)) datos.set(k, 'hojas');
+        }
+        const kc = clave(a.x, a.suelo + alto + 2, a.z);
+        if (!datos.has(kc)) datos.set(kc, 'hojas');
+      }
+      actualizar(0.75);
+      await new Promise(r => setTimeout(r, 0));
+
+      // Fase 3: crear mallas solo de los expuestos
+      let i = 0;
+      const todasLasClaves = Array.from(datos.keys());
+      for (const k of todasLasClaves) {
+        const [x,y,z] = k.split(',').map(Number);
+        if (expuesto(x, y, z)) {
+          crearMalla(datos.get(k), x, y, z);
+        }
+        i++;
+        if (i % 2000 === 0) {
+          actualizar(0.75 + (i / todasLasClaves.length) * 0.25);
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+
+      // Fase 4: añadir el agua (un plano grande semitransparente)
+      const matAgua = new THREE.MeshLambertMaterial({
+        color: 0x2196f3,
+        transparent: true,
+        opacity: 0.65,
+      });
+      const geoAgua = new THREE.PlaneGeometry(TAM, TAM);
+      mallaAgua = new THREE.Mesh(geoAgua, matAgua);
+      mallaAgua.rotation.x = -Math.PI / 2;
+      mallaAgua.position.set(TAM/2, NIVEL_MAR + 0.9, TAM/2);
+      escena.add(mallaAgua);
+
+      actualizar(1);
+    }
+
+    // ============================================
+    // NAVE DE DARTH VADER (TIE Advanced)
+    // ============================================
+    function construirNaveVader(x0, y0, z0) {
+      let total = 0;
+
+      function bloque(t, x, y, z) {
+        quitarBloque(x, y, z);
+        if (ponerBloque(t, x, y, z)) total++;
+      }
+
+      // 1. COCKPIT — esfera de piedra (5 de radio = bola gigante)
+      const r = 4;
+      for (let dx = -r; dx <= r; dx++)
+        for (let dy = -r; dy <= r; dy++)
+          for (let dz = -r; dz <= r; dz++) {
+            const d = dx*dx + dy*dy + dz*dz;
+            if (d <= r*r && d >= (r-1)*(r-1)) {
+              bloque('piedra', x0 + dx, y0 + dy, z0 + dz);
+            }
+          }
+
+      // 2. VENTANA del piloto (delante, hexágono de diamante)
+      for (let dy = -2; dy <= 2; dy++)
+        for (let dz = -2; dz <= 2; dz++) {
+          if (dy*dy + dz*dz <= 4) {
+            bloque('diamante', x0 + r + 1, y0 + dy, z0 + dz);
+          }
+        }
+      // Borde negro alrededor de la ventana
+      for (let dy = -3; dy <= 3; dy++)
+        for (let dz = -3; dz <= 3; dz++) {
+          const d = dy*dy + dz*dz;
+          if (d <= 9 && d > 4) {
+            bloque('grava', x0 + r + 1, y0 + dy, z0 + dz);
+          }
+        }
+
+      // 3. CONEXIONES (los "brazos" que unen cockpit con alas)
+      const distAla = 6;
+      for (let i = 1; i <= distAla; i++) {
+        // brazo izquierdo
+        bloque('grava', x0, y0, z0 - r - i);
+        bloque('grava', x0, y0 + 1, z0 - r - i);
+        bloque('grava', x0, y0 - 1, z0 - r - i);
+        // brazo derecho
+        bloque('grava', x0, y0, z0 + r + i);
+        bloque('grava', x0, y0 + 1, z0 + r + i);
+        bloque('grava', x0, y0 - 1, z0 + r + i);
+      }
+
+      // 4. ALAS HEXAGONALES (las famosas de TIE — verticales, planas)
+      function alaHexagonal(cz) {
+        const altura = 9;       // 19 bloques de alto
+        const fondo = 5;        // 11 bloques de adelante-atrás
+        for (let dy = -altura; dy <= altura; dy++) {
+          const ady = Math.abs(dy);
+          // Hexágono: el ancho se reduce arriba y abajo
+          let limX = fondo;
+          if (ady > altura - 3) limX = fondo - (ady - (altura - 3)) * 2;
+          if (limX < 1) continue;
+          for (let dx = -limX; dx <= limX; dx++) {
+            // Borde más oscuro
+            const borde = (ady === altura) || (Math.abs(dx) === limX);
+            const cruz = (dx === 0 || dy === 0);
+            const tipo = borde ? 'grava' : (cruz ? 'grava' : 'piedra');
+            bloque(tipo, x0 + dx, y0 + dy, cz);
+          }
+        }
+        // Detrás del ala, otra capa más fina para darle grosor
+        for (let dy = -altura; dy <= altura; dy++) {
+          const ady = Math.abs(dy);
+          let limX = fondo - 1;
+          if (ady > altura - 4) limX = fondo - 1 - (ady - (altura - 4)) * 2;
+          if (limX < 1) continue;
+          for (let dx = -limX; dx <= limX; dx++) {
+            bloque('grava', x0 + dx, y0 + dy, cz + (cz < z0 ? -1 : 1));
+          }
+        }
+      }
+      alaHexagonal(z0 - r - distAla - 1);
+      alaHexagonal(z0 + r + distAla + 1);
+
+      // 5. CAÑONES delanteros (dos cañones que apuntan hacia adelante)
+      for (let i = 0; i < 4; i++) {
+        bloque('grava', x0 + r + 1 + i, y0 - 2, z0 - 1);
+        bloque('grava', x0 + r + 1 + i, y0 - 2, z0 + 1);
+      }
+
+      // 6. MOTORES (parte trasera, brillan en diamante azul)
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dz = -1; dz <= 1; dz++) {
+          if (Math.abs(dy) + Math.abs(dz) <= 2) {
+            bloque('diamante', x0 - r - 1, y0 + dy, z0 + dz);
+            bloque('diamante', x0 - r - 2, y0 + dy, z0 + dz);
+          }
+        }
+
+      return total;
+    }
+
+    // ============================================
+    // HOTBAR
+    // ============================================
+    let bloqueElegido = 'cesped';
+    const hotbar = document.getElementById('hotbar');
+
+    function reconstruirHotbar() {
+      hotbar.innerHTML = '';
+      TIPOS_VISIBLES.forEach((tipo, i) => {
+        const slot = document.createElement('div');
+        slot.className = 'slot' + (tipo === bloqueElegido ? ' activo' : '');
+        slot.dataset.tipo = tipo;
+        const num = document.createElement('div');
+        num.className = 'num'; num.textContent = (i+1);
+        slot.appendChild(num);
+        const icono = document.createElement('canvas');
+        icono.className = 'icono';
+        icono.width = 16; icono.height = 16;
+        icono.getContext('2d').drawImage(BLOQUES[tipo].arriba.image, 0, 0);
+        slot.appendChild(icono);
+        const nom = document.createElement('div');
+        nom.textContent = BLOQUES[tipo].nombre;
+        slot.appendChild(nom);
+        hotbar.appendChild(slot);
+      });
+    }
+    reconstruirHotbar();
+    function actualizarHotbar() {
+      hotbar.querySelectorAll('.slot').forEach(s => {
+        s.classList.toggle('activo', s.dataset.tipo === bloqueElegido);
+      });
+    }
+
+    // ============================================
+    // CONTROLES
+    // ============================================
+    let yaw = 0, pitch = -0.35;
+    function aplicarRotacion() { camara.rotation.y = yaw; camara.rotation.x = pitch; }
+    aplicarRotacion();
+    function moverFrente(d)  { camara.position.x -= Math.sin(yaw) * d; camara.position.z -= Math.cos(yaw) * d; }
+    function moverDerecha(d) { camara.position.x += Math.cos(yaw) * d; camara.position.z -= Math.sin(yaw) * d; }
+
+    const teclas = {};
+    let modoCreativo = true; // empezamos volando para apreciar el mundo
+
+    const overlay = document.getElementById('overlay');
+    const cargando = document.getElementById('cargando');
+    const rellenoCarga = document.getElementById('relleno-carga');
+    const textoCarga = document.getElementById('texto-carga');
+
+    overlay.addEventListener('click', async () => {
+      overlay.style.display = 'none';
+      cargando.classList.add('activo');
+
+      const progreso = (p) => {
+        rellenoCarga.style.width = (p * 100).toFixed(0) + '%';
+        textoCarga.textContent = (p * 100).toFixed(0) + '% — ' + datos.size + ' bloques · ' + mallas.size + ' visibles';
+      };
+
+      // Si hay un mundo guardado, lo cargamos en vez de generar uno nuevo
+      if (hayGuardado()) {
+        document.querySelector('#cargando > div').textContent = '💾 Cargando tu mundo guardado...';
+        const r = await cargarMundo(progreso);
+        cargando.classList.remove('activo');
+        if (r) {
+          log('💾 ¡Mundo guardado cargado! Tienes ' + datos.size + ' bloques, ' + mallas.size + ' visibles', 'ok');
+          log('✨ Todo sigue donde lo dejaste, Aaron. Sigue construyendo 🚀', 'ok');
+        } else {
+          log('No se pudo cargar el mundo guardado. Generando uno nuevo...', 'err');
+          cargando.classList.add('activo');
+          await generarMundo(progreso);
+          cargando.classList.remove('activo');
+        }
+      } else {
+        document.querySelector('#cargando > div').textContent = '🌍 Generando mundo nuevo...';
+        await generarMundo(progreso);
+        cargando.classList.remove('activo');
+        log('🌍 Mundo generado: ' + datos.size + ' bloques totales, ' + mallas.size + ' visibles', 'ok');
+      }
+
+      mundoListo = true;
+      // Guardar el mundo recién creado/cargado
+      guardarMundo(true);
+    });
+
+    // ============================================
+    // CHAT / COMANDOS
+    // ============================================
+    const chat = document.getElementById('chat');
+    const chatHistorial = document.getElementById('chat-historial');
+    const chatInput = document.getElementById('chat-input');
+
+    function log(t, c = 'info') {
+      const l = document.createElement('div');
+      l.className = 'linea ' + c; l.textContent = t;
+      chatHistorial.appendChild(l);
+      chatHistorial.scrollTop = chatHistorial.scrollHeight;
+    }
+
+    function abrirChat(ini = '') { chat.classList.add('activo'); chatInput.value = ini; setTimeout(() => chatInput.focus(), 0); }
+    function cerrarChat() { chat.classList.remove('activo'); chatInput.value = ''; chatInput.blur(); }
+
+    chatInput.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        const texto = chatInput.value.trim();
+        if (texto) { log('> ' + texto, 'yo'); ejecutarComando(texto); }
+        cerrarChat();
+      } else if (e.key === 'Escape') cerrarChat();
+    });
+
+    async function ejecutarComando(texto) {
+      if (!texto.startsWith('/')) texto = '/' + texto;
+      const partes = texto.slice(1).split(/\s+/);
+      const cmd = partes[0].toLowerCase();
+      const args = partes.slice(1);
+      try {
+        switch (cmd) {
+          case 'help':
+            log('Comandos básicos:', 'ok');
+            log('  /give /tp /time /gamemode /vuelo /fill /clear /regenerar /pos', 'info');
+            log('💾 GUARDADO:', 'ok');
+            log('  /guardar       — guardar el mundo ahora mismo', 'info');
+            log('  /cargar        — recargar el último guardado', 'info');
+            log('  /nuevomundo    — borrar guardado y empezar de cero', 'info');
+            log('  /exportar      — descargar archivo .json con todo (backup)', 'info');
+            log('  /importar      — cargar un archivo .json previamente exportado', 'info');
+            log('🤪 COMANDOS LOCOS:', 'ok');
+            log('  /explosion [radio]            💥 destruye una bola de bloques', 'info');
+            log('  /cohete                       🚀 te lanza al cielo', 'info');
+            log('  /torre [altura] [bloque]      🗼 torre gigante hasta el cielo', 'info');
+            log('  /piramide [altura] [bloque]   🔺 pirámide egipcia', 'info');
+            log('  /esfera [radio] [bloque]      🪐 esfera gigante', 'info');
+            log('  /lluvia <bloque>              🌧️ llueven bloques del cielo', 'info');
+            log('  /arcoiris [radio]             🌈 anillo de colores', 'info');
+            log('  /disco                        🪩 modo discoteca (ON/OFF)', 'info');
+            log('  /terremoto [segundos]         🌍 temblor brutal', 'info');
+            log('  /lanzar [fuerza]              🤸 te catapulta', 'info');
+            log('  /diamantes                    💎 lluvia de diamantes solo a ti', 'info');
+            log('  /super                        ⚡ velocidad super sayan', 'info');
+            log('  /vader                        ⚫🚀 nave de Darth Vader (TIE)', 'info');
+            log('  Bloques: ' + TIPOS.join(', '), 'info');
+            break;
+          case 'explosion': case 'boom': {
+            const radio = Math.min(15, parseInt(args[0]) || 6);
+            const px = Math.floor(camara.position.x);
+            const py = Math.floor(camara.position.y);
+            const pz = Math.floor(camara.position.z);
+            let n = 0;
+            for (let dx = -radio; dx <= radio; dx++)
+              for (let dy = -radio; dy <= radio; dy++)
+                for (let dz = -radio; dz <= radio; dz++) {
+                  if (dx*dx + dy*dy + dz*dz <= radio*radio) {
+                    if (quitarBloque(px+dx, py+dy, pz+dz)) n++;
+                  }
+                }
+            sacudirCamara(2, 800);
+            log('💥 ¡¡BOOOOOM!! Destruidos ' + n + ' bloques', 'ok');
+            break;
+          }
+          case 'cohete': {
+            velY = 35;
+            modoCreativo = false;
+            sacudirCamara(1, 500);
+            log('🚀 ¡COHETE LANZADO!', 'ok');
+            break;
+          }
+          case 'lanzar': {
+            const fuerza = parseInt(args[0]) || 25;
+            velY = fuerza;
+            modoCreativo = false;
+            log('🤸 ¡CATAPULTA con fuerza ' + fuerza + '!', 'ok');
+            break;
+          }
+          case 'torre': {
+            const altura = Math.min(80, parseInt(args[0]) || 50);
+            const tipo = (args[1] || 'piedra').toLowerCase();
+            if (!TIPOS.includes(tipo)) throw new Error('Bloque desconocido: ' + tipo);
+            const px = Math.floor(camara.position.x) + 2;
+            const py = Math.floor(camara.position.y) - 2;
+            const pz = Math.floor(camara.position.z);
+            let n = 0;
+            for (let dy = 0; dy < altura; dy++) {
+              for (let dx = -1; dx <= 1; dx++)
+                for (let dz = -1; dz <= 1; dz++) {
+                  const borde = Math.abs(dx) === 1 || Math.abs(dz) === 1;
+                  if (borde) if (ponerBloque(tipo, px+dx, py+dy, pz+dz)) n++;
+                }
+            }
+            log('🗼 Torre de ' + altura + ' bloques de altura (' + n + ' bloques)', 'ok');
+            break;
+          }
+          case 'piramide': case 'pirámide': {
+            const altura = Math.min(20, parseInt(args[0]) || 10);
+            const tipo = (args[1] || 'arena').toLowerCase();
+            if (!TIPOS.includes(tipo)) throw new Error('Bloque desconocido: ' + tipo);
+            const px = Math.floor(camara.position.x);
+            const py = Math.floor(camara.position.y) - 1;
+            const pz = Math.floor(camara.position.z) + altura + 2;
+            let n = 0;
+            for (let nivel = 0; nivel < altura; nivel++) {
+              const ancho = altura - nivel - 1;
+              for (let dx = -ancho; dx <= ancho; dx++)
+                for (let dz = -ancho; dz <= ancho; dz++) {
+                  if (ponerBloque(tipo, px+dx, py+nivel, pz+dz)) n++;
+                }
+            }
+            log('🔺 Pirámide de ' + n + ' bloques', 'ok');
+            break;
+          }
+          case 'esfera': {
+            const radio = Math.min(15, parseInt(args[0]) || 6);
+            const tipo = (args[1] || 'diamante').toLowerCase();
+            if (!TIPOS.includes(tipo)) throw new Error('Bloque desconocido: ' + tipo);
+            const px = Math.floor(camara.position.x) + radio + 3;
+            const py = Math.floor(camara.position.y) + radio;
+            const pz = Math.floor(camara.position.z);
+            let n = 0;
+            for (let dx = -radio; dx <= radio; dx++)
+              for (let dy = -radio; dy <= radio; dy++)
+                for (let dz = -radio; dz <= radio; dz++) {
+                  const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                  if (d <= radio && d >= radio - 1) {
+                    if (ponerBloque(tipo, px+dx, py+dy, pz+dz)) n++;
+                  }
+                }
+            log('🪐 Esfera gigante de ' + n + ' bloques', 'ok');
+            break;
+          }
+          case 'lluvia': {
+            const tipo = (args[0] || 'diamante').toLowerCase();
+            if (!TIPOS.includes(tipo)) throw new Error('Bloque desconocido: ' + tipo);
+            const px = Math.floor(camara.position.x);
+            const pz = Math.floor(camara.position.z);
+            let restantes = 60;
+            const interv = setInterval(() => {
+              if (restantes <= 0) { clearInterval(interv); return; }
+              for (let i = 0; i < 5; i++) {
+                const dx = Math.floor((Math.random() - 0.5) * 30);
+                const dz = Math.floor((Math.random() - 0.5) * 30);
+                const dy = 20 + Math.floor(Math.random() * 15);
+                ponerBloque(tipo, px + dx, dy, pz + dz);
+              }
+              restantes -= 5;
+            }, 80);
+            log('🌧️ ¡LLUVIA de ' + BLOQUES[tipo].nombre + '! Mira al cielo 👆', 'ok');
+            break;
+          }
+          case 'arcoiris': case 'arcoíris': {
+            const radio = Math.min(15, parseInt(args[0]) || 6);
+            const px = Math.floor(camara.position.x);
+            const py = Math.floor(camara.position.y) - 1;
+            const pz = Math.floor(camara.position.z);
+            const colores = ['diamante','arena','hojas','tronco','tablones','nieve','grava'];
+            let i = 0, n = 0;
+            for (let ang = 0; ang < Math.PI * 2; ang += 0.18) {
+              const x = px + Math.round(Math.cos(ang) * radio);
+              const z = pz + Math.round(Math.sin(ang) * radio);
+              const y = py + Math.round(Math.sin(ang * 4) * 2);
+              if (ponerBloque(colores[i % colores.length], x, y, z)) n++;
+              i++;
+            }
+            log('🌈 Arcoíris de ' + n + ' bloques alrededor tuyo', 'ok');
+            break;
+          }
+          case 'disco': {
+            if (discoIntervalo) {
+              clearInterval(discoIntervalo); discoIntervalo = null;
+              // restaurar
+              for (const tipo in materialesCache) for (const m of materialesCache[tipo]) m.color.set(0xffffff);
+              log('🪩 Fiesta terminada', 'ok');
+            } else {
+              discoIntervalo = setInterval(() => {
+                for (const tipo in materialesCache) {
+                  const h = Math.random();
+                  for (const m of materialesCache[tipo]) m.color.setHSL(h, 0.9, 0.6);
+                }
+              }, 180);
+              log('🪩 ¡¡¡DISCOTECAAA!!! Escribe /disco otra vez para parar', 'ok');
+            }
+            break;
+          }
+          case 'terremoto': {
+            const seg = Math.min(10, parseFloat(args[0]) || 3);
+            sacudirCamara(2.5, seg * 1000);
+            log('🌍🌋 ¡¡¡TERREMOTO durante ' + seg + ' segundos!!!', 'ok');
+            break;
+          }
+          case 'diamantes': {
+            const px = Math.floor(camara.position.x);
+            const pz = Math.floor(camara.position.z);
+            for (let i = 0; i < 30; i++) {
+              const dx = Math.floor((Math.random() - 0.5) * 10);
+              const dz = Math.floor((Math.random() - 0.5) * 10);
+              const dy = 20 + Math.floor(Math.random() * 10);
+              ponerBloque('diamante', px + dx, dy, pz + dz);
+            }
+            log('💎✨ ¡DIAMANTES PARA TI! Mira hacia arriba', 'ok');
+            break;
+          }
+          case 'super': case 'sayan': case 'sayajin': {
+            superSayan = !superSayan;
+            log(superSayan ? '⚡ ¡MODO SUPER SAYAN ACTIVADO! Vas 4 veces más rápido' : 'Velocidad normal', 'ok');
+            break;
+          }
+          case 'exportar': case 'export': case 'descargar': {
+            guardarMundo(true);
+            const completo = {
+              app: 'aaron-mundo',
+              version: 1,
+              fecha: new Date().toISOString(),
+              mundo: localStorage.getItem('aaron-mundo'),
+              texturas: localStorage.getItem('aaron-texturas'),
+            };
+            const blob = new Blob([JSON.stringify(completo)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'aaron-mundo-' + new Date().toISOString().slice(0,10) + '.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1500);
+            log('📥 Descargado: ' + a.download + ' — guarda este archivo bien', 'ok');
+            break;
+          }
+          case 'importar': case 'import': case 'cargar_archivo': {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,application/json';
+            input.onchange = async (ev) => {
+              try {
+                const file = ev.target.files && ev.target.files[0];
+                if (!file) return;
+                const txt = await file.text();
+                const completo = JSON.parse(txt);
+                if (completo.app !== 'aaron-mundo' && completo.app !== 'aaron-minecraft') throw new Error('Archivo no válido');
+                if (completo.mundo) localStorage.setItem('aaron-mundo', completo.mundo);
+                if (completo.texturas) localStorage.setItem('aaron-texturas', completo.texturas);
+                cargando.classList.add('activo');
+                document.querySelector('#cargando > div').textContent = '📤 Importando mundo...';
+                await cargarMundo(p => {
+                  rellenoCarga.style.width = (p * 100).toFixed(0) + '%';
+                  textoCarga.textContent = (p * 100).toFixed(0) + '%';
+                });
+                cargando.classList.remove('activo');
+                cargarTexturasGuardadas();
+                log('📤 ¡Importado! Tu mundo ha vuelto: ' + mallas.size + ' bloques visibles', 'ok');
+              } catch (err) {
+                log('⚠️ Error importando: ' + err.message, 'err');
+              }
+            };
+            input.click();
+            break;
+          }
+          case 'guardar': case 'save': {
+            if (guardarMundo()) log('✅ Mundo guardado correctamente. Vuelve cuando quieras 😊', 'ok');
+            break;
+          }
+          case 'cargar': case 'load': {
+            if (!hayGuardado()) throw new Error('No hay ningún mundo guardado');
+            cargando.classList.add('activo');
+            document.querySelector('#cargando > div').textContent = '💾 Cargando mundo guardado...';
+            await cargarMundo(p => {
+              rellenoCarga.style.width = (p * 100).toFixed(0) + '%';
+              textoCarga.textContent = (p * 100).toFixed(0) + '%';
+            });
+            cargando.classList.remove('activo');
+            log('💾 Mundo cargado: ' + mallas.size + ' bloques visibles', 'ok');
+            break;
+          }
+          case 'nuevomundo': case 'borrar_guardado': {
+            try { localStorage.removeItem('aaron-mundo'); } catch {}
+            limpiarMundo();
+            cargando.classList.add('activo');
+            document.querySelector('#cargando > div').textContent = '🌍 Mundo nuevo...';
+            SEMILLA = Math.floor(Math.random() * 10000);
+            await generarMundo(p => {
+              rellenoCarga.style.width = (p * 100).toFixed(0) + '%';
+              textoCarga.textContent = (p * 100).toFixed(0) + '%';
+            });
+            cargando.classList.remove('activo');
+            camara.position.set(32, 25, 80);
+            mundoSucio = true;
+            guardarMundo(true);
+            log('🌍 Mundo NUEVO creado y guardado (el anterior se perdió)', 'ok');
+            break;
+          }
+          case 'vader': case 'darth': case 'tie': {
+            const px = Math.floor(camara.position.x) + 15;
+            const py = Math.floor(camara.position.y) + 5;
+            const pz = Math.floor(camara.position.z);
+            const n = construirNaveVader(px, py, pz);
+            log('⚫🚀 ¡NAVE DE DARTH VADER aparece! (' + n + ' bloques)', 'ok');
+            log('   Está delante tuyo en ' + px + ',' + py + ',' + pz, 'info');
+            break;
+          }
+          case 'give': {
+            const n = (args[0] || '').toLowerCase();
+            if (!TIPOS.includes(n)) throw new Error('Bloque desconocido: ' + n);
+            bloqueElegido = n; actualizarHotbar();
+            log('Tienes ' + BLOQUES[n].nombre + ' en la mano', 'ok'); break;
+          }
+          case 'tp': {
+            const [x,y,z] = args.map(Number);
+            if ([x,y,z].some(isNaN)) throw new Error('Uso: /tp <x> <y> <z>');
+            camara.position.set(x, y, z);
+            log('Tp a ' + x + ', ' + y + ', ' + z, 'ok'); break;
+          }
+          case 'pos': case 'donde':
+            log('Estás en x: ' + camara.position.x.toFixed(1) + ', y: ' + camara.position.y.toFixed(1) + ', z: ' + camara.position.z.toFixed(1), 'ok'); break;
+          case 'time': {
+            const c = (args[0] || '').toLowerCase();
+            if (c === 'day' || c === 'dia' || c === 'día') {
+              escena.background = new THREE.Color(0x87ceeb);
+              escena.fog.color = new THREE.Color(0x87ceeb);
+              ambiental.intensity = 0.55; sol.intensity = 0.9;
+              sol.color = new THREE.Color(0xffffff);
+              if (mallaAgua) mallaAgua.material.color = new THREE.Color(0x2196f3);
+              log('☀️ Día', 'ok');
+            } else if (c === 'night' || c === 'noche') {
+              escena.background = new THREE.Color(0x0a1834);
+              escena.fog.color = new THREE.Color(0x0a1834);
+              ambiental.intensity = 0.18; sol.intensity = 0.25;
+              sol.color = new THREE.Color(0x8fa9e8);
+              if (mallaAgua) mallaAgua.material.color = new THREE.Color(0x0d2647);
+              log('🌙 Noche', 'ok');
+            } else throw new Error('Uso: /time day|night');
+            break;
+          }
+          case 'gamemode': case 'gm': {
+            const m = (args[0] || '').toLowerCase();
+            if (m === 'creative' || m === 'c' || m === 'creativo') { modoCreativo = true; velY = 0; log('Modo creativo (vuelas)', 'ok'); }
+            else if (m === 'survival' || m === 's' || m === 'supervivencia') { modoCreativo = false; log('Modo supervivencia', 'ok'); }
+            else throw new Error('Uso: /gamemode creative|survival');
+            break;
+          }
+          case 'vuelo': case 'fly':
+            modoCreativo = !modoCreativo; log(modoCreativo ? 'Volar: ON' : 'Volar: OFF', 'ok'); break;
+          case 'fill': {
+            const [x1,y1,z1,x2,y2,z2] = args.slice(0,6).map(Number);
+            const tipo = (args[6] || '').toLowerCase();
+            if ([x1,y1,z1,x2,y2,z2].some(isNaN)) throw new Error('Uso: /fill x1 y1 z1 x2 y2 z2 bloque');
+            if (!TIPOS.includes(tipo)) throw new Error('Bloque desconocido: ' + tipo);
+            const xmin=Math.min(x1,x2), xmax=Math.max(x1,x2);
+            const ymin=Math.min(y1,y2), ymax=Math.max(y1,y2);
+            const zmin=Math.min(z1,z2), zmax=Math.max(z1,z2);
+            const total = (xmax-xmin+1)*(ymax-ymin+1)*(zmax-zmin+1);
+            if (total > 8000) throw new Error('Máx 8000 bloques');
+            let n = 0;
+            for (let x = xmin; x <= xmax; x++) for (let y = ymin; y <= ymax; y++) for (let z = zmin; z <= zmax; z++) {
+              quitarBloque(x,y,z);
+              if (ponerBloque(tipo, x, y, z)) n++;
+            }
+            log('Colocados ' + n + ' bloques de ' + BLOQUES[tipo].nombre, 'ok'); break;
+          }
+          case 'clear':
+            limpiarMundo(); log('Mundo vaciado', 'ok'); break;
+          case 'regenerar': case 'regen': {
+            limpiarMundo();
+            if (args[0]) SEMILLA = parseInt(args[0]) || SEMILLA;
+            else SEMILLA = Math.floor(Math.random() * 10000);
+            cargando.classList.add('activo');
+            await generarMundo(p => {
+              rellenoCarga.style.width = (p * 100).toFixed(0) + '%';
+              textoCarga.textContent = (p * 100).toFixed(0) + '%';
+            });
+            cargando.classList.remove('activo');
+            camara.position.set(32, 25, 80);
+            log('Mundo regenerado (semilla ' + SEMILLA + ') — ' + mallas.size + ' bloques visibles', 'ok');
+            break;
+          }
+          default:
+            throw new Error('Comando desconocido: /' + cmd + ' (prueba /help)');
+        }
+      } catch (err) { log(err.message, 'err'); }
+    }
+
+    log('💬 Bienvenido Aaron. /help para ver los comandos. Semilla: ' + SEMILLA, 'info');
+    log('🎨 Pulsa E para abrir el editor de texturas pixel art', 'info');
+    log('🤪 Prueba /help para ver los COMANDOS LOCOS', 'info');
+
+    // ============================================
+    // ESTADO PARA COMANDOS LOCOS
+    // ============================================
+    let discoIntervalo = null;
+    let superSayan = false;
+    let sacudidaIntensidad = 0;
+    let sacudidaFin = 0;
+    let sacudidaDuracion = 0;
+    function sacudirCamara(intensidad, duracionMs) {
+      sacudidaIntensidad = intensidad;
+      sacudidaDuracion = duracionMs;
+      sacudidaFin = performance.now() + duracionMs;
+    }
+
+    // ============================================
+    // EDITOR DE TEXTURAS PIXEL ART
+    // ============================================
+    const PALETA_BASE = [
+      // Verdes
+      '#1b5e20','#2e7d32','#43a047','#5b9c3a','#79c252','#a5d6a7',
+      // Marrones
+      '#3e2723','#5d3e23','#795548','#8d6e63','#a37b4a','#bcaaa4',
+      // Grises
+      '#212121','#424242','#616161','#9e9e9e','#bdbdbd','#eeeeee',
+      // Amarillos / arena
+      '#f57f17','#ffeb3b','#fff176','#f0d97a','#e8cf66','#fdd835',
+      // Azules
+      '#0d47a1','#1976d2','#2196f3','#4dd0e1','#80deea','#b3e5fc',
+      // Rojos
+      '#b71c1c','#d32f2f','#f44336','#ff5722','#ff8a65','#ffccbc',
+      // Morados / rosas
+      '#4a148c','#7b1fa2','#9c27b0','#e91e63','#f48fb1','#fce4ec',
+      // Blanco / negro
+      '#ffffff','#fafafa','#cfd8dc','#37474f','#000000','#263238',
+    ];
+
+    const editor = document.getElementById('editor');
+    const edLienzo = document.getElementById('ed-lienzo');
+    const edCtx = edLienzo.getContext('2d');
+    const edMini = document.getElementById('ed-mini');
+    const edMiniGrande = document.getElementById('ed-mini-grande');
+    const edBloqueSel = document.getElementById('ed-bloque');
+    const edPickerColor = document.getElementById('ed-color-picker');
+    const edPaleta = document.getElementById('ed-paleta-colores');
+
+    let edPixels = new Array(16 * 16).fill(null); // null = transparente
+    let edBloque = 'cesped';
+    let edCara = 'arriba'; // arriba | lado | abajo
+    let edColor = '#5b9c3a';
+    let edPintando = false;
+    let edBorrando = false;
+    const ED_CELDA = 24; // 24px por píxel (16*24 = 384)
+
+    // Construir selector de bloques
+    TIPOS.forEach(t => {
+      const op = document.createElement('option');
+      op.value = t; op.textContent = BLOQUES[t].nombre;
+      edBloqueSel.appendChild(op);
+    });
+
+    // Construir paleta
+    function construirPaleta() {
+      edPaleta.innerHTML = '';
+      // borrador
+      const borrador = document.createElement('div');
+      borrador.className = 'ed-color borrador';
+      borrador.title = 'Borrador (transparente)';
+      borrador.addEventListener('click', () => {
+        edColor = null;
+        marcarColorActivo(borrador);
+      });
+      edPaleta.appendChild(borrador);
+      PALETA_BASE.forEach(c => {
+        const sw = document.createElement('div');
+        sw.className = 'ed-color';
+        sw.style.background = c;
+        sw.dataset.color = c;
+        sw.addEventListener('click', () => {
+          edColor = c;
+          edPickerColor.value = c;
+          marcarColorActivo(sw);
+        });
+        edPaleta.appendChild(sw);
+      });
+    }
+    function marcarColorActivo(el) {
+      edPaleta.querySelectorAll('.ed-color').forEach(s => s.classList.remove('activo'));
+      if (el) el.classList.add('activo');
+    }
+    construirPaleta();
+
+    edPickerColor.addEventListener('input', (e) => {
+      edColor = e.target.value;
+      marcarColorActivo(null);
+    });
+
+    // Cargar la textura actual al editor (lee los píxeles de la imagen)
+    function cargarTexturaActual() {
+      const cara = BLOQUES[edBloque][edCara];
+      const cv = document.createElement('canvas');
+      cv.width = 16; cv.height = 16;
+      const cx = cv.getContext('2d');
+      cx.drawImage(cara.image, 0, 0);
+      const data = cx.getImageData(0, 0, 16, 16).data;
+      for (let i = 0; i < 256; i++) {
+        const r = data[i*4], g = data[i*4+1], b = data[i*4+2], a = data[i*4+3];
+        if (a < 50) edPixels[i] = null;
+        else edPixels[i] = '#' + [r,g,b].map(n => n.toString(16).padStart(2,'0')).join('');
+      }
+      redibujarEditor();
+    }
+
+    function redibujarEditor() {
+      // fondo de cuadros (transparencia)
+      edCtx.fillStyle = '#dcdcdc';
+      edCtx.fillRect(0, 0, edLienzo.width, edLienzo.height);
+      edCtx.fillStyle = '#a8a8a8';
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        if ((x + y) % 2 === 0) edCtx.fillRect(x * ED_CELDA, y * ED_CELDA, ED_CELDA, ED_CELDA);
+      }
+      // píxeles
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const c = edPixels[y * 16 + x];
+        if (c) {
+          edCtx.fillStyle = c;
+          edCtx.fillRect(x * ED_CELDA, y * ED_CELDA, ED_CELDA, ED_CELDA);
+        }
+      }
+      // rejilla
+      edCtx.strokeStyle = 'rgba(0,0,0,0.18)';
+      edCtx.lineWidth = 1;
+      for (let i = 0; i <= 16; i++) {
+        edCtx.beginPath();
+        edCtx.moveTo(i * ED_CELDA + 0.5, 0);
+        edCtx.lineTo(i * ED_CELDA + 0.5, edLienzo.height);
+        edCtx.stroke();
+        edCtx.beginPath();
+        edCtx.moveTo(0, i * ED_CELDA + 0.5);
+        edCtx.lineTo(edLienzo.width, i * ED_CELDA + 0.5);
+        edCtx.stroke();
+      }
+
+      // Actualizar previsualizaciones
+      const ctxMini = edMini.getContext('2d');
+      const ctxBig = edMiniGrande.getContext('2d');
+      ctxMini.clearRect(0,0,16,16);
+      ctxBig.clearRect(0,0,16,16);
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const c = edPixels[y * 16 + x];
+        if (c) {
+          ctxMini.fillStyle = c; ctxMini.fillRect(x, y, 1, 1);
+          ctxBig.fillStyle  = c; ctxBig.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+
+    function ponerPixelEnEvento(e) {
+      const rect = edLienzo.getBoundingClientRect();
+      const cx = (e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0].clientX)) - rect.left;
+      const cy = (e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0].clientY)) - rect.top;
+      const x = Math.floor(cx / rect.width * 16);
+      const y = Math.floor(cy / rect.height * 16);
+      if (x < 0 || x >= 16 || y < 0 || y >= 16) return;
+      const valor = edBorrando ? null : edColor;
+      const idx = y * 16 + x;
+      if (edPixels[idx] === valor) return;
+      edPixels[idx] = valor;
+      redibujarEditor();
+    }
+
+    edLienzo.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      edPintando = true;
+      edBorrando = (e.button === 2);
+      ponerPixelEnEvento(e);
+    });
+    edLienzo.addEventListener('mousemove', (e) => { if (edPintando) ponerPixelEnEvento(e); });
+    window.addEventListener('mouseup', () => { edPintando = false; edBorrando = false; });
+    edLienzo.addEventListener('contextmenu', e => e.preventDefault());
+    // Soporte táctil
+    edLienzo.addEventListener('touchstart', (e) => { e.preventDefault(); edPintando = true; ponerPixelEnEvento(e); });
+    edLienzo.addEventListener('touchmove',  (e) => { e.preventDefault(); if (edPintando) ponerPixelEnEvento(e); });
+    edLienzo.addEventListener('touchend',   () => { edPintando = false; });
+
+    // Botones de cara
+    document.querySelectorAll('.ed-cara-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.ed-cara-btn').forEach(b => b.classList.remove('activa'));
+        btn.classList.add('activa');
+        edCara = btn.dataset.cara;
+        cargarTexturaActual();
+      });
+    });
+
+    edBloqueSel.addEventListener('change', () => {
+      edBloque = edBloqueSel.value;
+      cargarTexturaActual();
+    });
+
+    document.getElementById('ed-limpiar').addEventListener('click', () => {
+      edPixels = new Array(256).fill(null);
+      redibujarEditor();
+    });
+    document.getElementById('ed-rellenar').addEventListener('click', () => {
+      edPixels = new Array(256).fill(edColor);
+      redibujarEditor();
+    });
+    document.getElementById('ed-aleatorio').addEventListener('click', () => {
+      // Crea ruido de variantes alrededor del color elegido
+      if (!edColor) return;
+      const r = parseInt(edColor.slice(1,3), 16);
+      const g = parseInt(edColor.slice(3,5), 16);
+      const b = parseInt(edColor.slice(5,7), 16);
+      for (let i = 0; i < 256; i++) {
+        const v = (Math.random() - 0.5) * 60;
+        const cr = Math.max(0, Math.min(255, Math.round(r + v)));
+        const cg = Math.max(0, Math.min(255, Math.round(g + v)));
+        const cb = Math.max(0, Math.min(255, Math.round(b + v)));
+        edPixels[i] = '#' + [cr,cg,cb].map(n => n.toString(16).padStart(2,'0')).join('');
+      }
+      redibujarEditor();
+    });
+
+    function aplicarTextura() {
+      // Construir un canvas 16x16 con los píxeles
+      const cv = document.createElement('canvas');
+      cv.width = 16; cv.height = 16;
+      const cx = cv.getContext('2d');
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        const c = edPixels[y * 16 + x];
+        if (c) { cx.fillStyle = c; cx.fillRect(x, y, 1, 1); }
+      }
+      // Crear textura Three.js
+      const nueva = new THREE.CanvasTexture(cv);
+      nueva.magFilter = THREE.NearestFilter;
+      nueva.minFilter = THREE.NearestFilter;
+      nueva.colorSpace = THREE.SRGBColorSpace;
+
+      // Sustituir la textura en BLOQUES
+      BLOQUES[edBloque][edCara] = nueva;
+
+      // Borrar caché de materiales para que se regenere con la nueva textura
+      delete materialesCache[edBloque];
+      const nuevosMats = materialesDe(edBloque);
+
+      // Actualizar todas las mallas existentes de ese tipo
+      for (const malla of mallas.values()) {
+        if (malla.userData.tipo === edBloque) malla.material = nuevosMats;
+      }
+
+      // Refrescar hotbar (los iconos usan la textura "arriba")
+      if (edCara === 'arriba') reconstruirHotbar();
+
+      // Guardar en localStorage para que persista
+      guardarTexturas();
+
+      log('🎨 Textura aplicada a ' + BLOQUES[edBloque].nombre + ' (' + edCara + ')', 'ok');
+    }
+
+    document.getElementById('ed-aplicar').addEventListener('click', aplicarTextura);
+    document.getElementById('ed-cerrar').addEventListener('click', () => cerrarEditor());
+
+    function abrirEditor() {
+      edBloque = edBloqueSel.value || 'cesped';
+      edBloqueSel.value = edBloque;
+      // Reiniciar a "arriba" por defecto
+      document.querySelectorAll('.ed-cara-btn').forEach(b => b.classList.toggle('activa', b.dataset.cara === 'arriba'));
+      edCara = 'arriba';
+      cargarTexturaActual();
+      editor.classList.add('activo');
+    }
+    function cerrarEditor() {
+      editor.classList.remove('activo');
+    }
+
+    // Guardado/carga en localStorage
+    function guardarTexturas() {
+      try {
+        const data = {};
+        TIPOS.forEach(t => {
+          data[t] = {};
+          for (const cara of ['arriba','lado','abajo']) {
+            const cv = document.createElement('canvas');
+            cv.width = 16; cv.height = 16;
+            cv.getContext('2d').drawImage(BLOQUES[t][cara].image, 0, 0);
+            data[t][cara] = cv.toDataURL('image/png');
+          }
+        });
+        localStorage.setItem('aaron-texturas', JSON.stringify(data));
+      } catch (err) {
+        log('No se pudo guardar texturas: ' + err.message, 'err');
+      }
+    }
+
+    function cargarTexturasGuardadas() {
+      try {
+        const raw = localStorage.getItem('aaron-texturas');
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        let cargadas = 0;
+        for (const tipo of TIPOS) {
+          if (!data[tipo]) continue;
+          for (const cara of ['arriba','lado','abajo']) {
+            const url = data[tipo][cara];
+            if (!url) continue;
+            const img = new Image();
+            img.onload = () => {
+              const cv = document.createElement('canvas');
+              cv.width = 16; cv.height = 16;
+              cv.getContext('2d').drawImage(img, 0, 0);
+              const tex = new THREE.CanvasTexture(cv);
+              tex.magFilter = THREE.NearestFilter;
+              tex.minFilter = THREE.NearestFilter;
+              tex.colorSpace = THREE.SRGBColorSpace;
+              BLOQUES[tipo][cara] = tex;
+              delete materialesCache[tipo];
+              const mats = materialesDe(tipo);
+              for (const malla of mallas.values()) {
+                if (malla.userData.tipo === tipo) malla.material = mats;
+              }
+              if (cara === 'arriba') reconstruirHotbar();
+              cargadas++;
+            };
+            img.src = url;
+          }
+        }
+        log('🎨 Texturas guardadas cargadas', 'info');
+      } catch (err) {
+        log('Error cargando texturas: ' + err.message, 'err');
+      }
+    }
+    // Cargar al iniciar
+    cargarTexturasGuardadas();
+
+    // ============================================
+    // TECLADO
+    // ============================================
+    window.addEventListener('keydown', (e) => {
+      if (chat.classList.contains('activo')) return;
+      // Si el editor está abierto, solo respondemos a Escape/E para cerrar
+      if (editor.classList.contains('activo')) {
+        if (e.key === 'Escape' || e.key === 'e' || e.key === 'E') {
+          e.preventDefault();
+          cerrarEditor();
+        }
+        return;
+      }
+      teclas[e.code] = true;
+      if (e.key >= '1' && e.key <= '9') {
+        const idx = parseInt(e.key) - 1;
+        if (idx < TIPOS_VISIBLES.length) { bloqueElegido = TIPOS_VISIBLES[idx]; actualizarHotbar(); }
+      }
+      if (e.key === 't' || e.key === 'T') { e.preventDefault(); abrirChat(''); }
+      else if (e.key === '/') { e.preventDefault(); abrirChat('/'); }
+      else if (e.key === 'e' || e.key === 'E') { e.preventDefault(); abrirEditor(); }
+      if (e.code === 'Space') {
+        if (modoCreativo) { velY = 0; camara.position.y += 0.5; }
+        else if (enSuelo) { velY = SALTO; enSuelo = false; }
+      }
+      if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && modoCreativo) camara.position.y -= 0.5;
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+    });
+    window.addEventListener('keyup', (e) => { teclas[e.code] = false; });
+
+    // ============================================
+    // CLIC: ROMPER / PONER
+    // ============================================
+    const rayo = new THREE.Raycaster();
+    const lienzo = document.getElementById('lienzo');
+
+    lienzo.addEventListener('mousedown', (e) => {
+      if (overlay.style.display !== 'none') return;
+      if (chat.classList.contains('activo')) return;
+      e.preventDefault();
+      const rect = lienzo.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      rayo.setFromCamera(new THREE.Vector2(x, y), camara);
+      const hits = rayo.intersectObjects(Array.from(mallas.values()));
+      if (hits.length === 0) return;
+      const hit = hits[0];
+      if (hit.distance > 20) return;
+      const { x: bx, y: by, z: bz } = hit.object.userData;
+      const poner = e.shiftKey || e.button === 2;
+      if (poner) {
+        const n = hit.face.normal;
+        ponerBloque(bloqueElegido, bx + Math.round(n.x), by + Math.round(n.y), bz + Math.round(n.z));
+      } else quitarBloque(bx, by, bz);
+    });
+    window.addEventListener('contextmenu', e => e.preventDefault());
+
+    // ============================================
+    // FÍSICA
+    // ============================================
+    let velY = 0, enSuelo = false;
+    const VELOCIDAD = 7, VELOCIDAD_VOLAR = 14;
+    const VELOCIDAD_GIRO = 2.5, VELOCIDAD_MIRA = 1.8;
+    const GRAVEDAD = 22, SALTO = 9, ALTURA = 1.7;
+
+    function actualizar(dt) {
+      let dx = 0, dz = 0;
+      if (teclas['KeyW']) dz -= 1;
+      if (teclas['KeyS']) dz += 1;
+      if (teclas['KeyA']) dx -= 1;
+      if (teclas['KeyD']) dx += 1;
+      let v = modoCreativo ? VELOCIDAD_VOLAR : VELOCIDAD;
+      if (superSayan) v *= 4;
+      if (dx !== 0 || dz !== 0) {
+        const len = Math.hypot(dx, dz);
+        moverDerecha(dx/len * v * dt);
+        moverFrente(-dz/len * v * dt);
+      }
+      if (teclas['ArrowLeft'])  yaw   += VELOCIDAD_GIRO * dt;
+      if (teclas['ArrowRight']) yaw   -= VELOCIDAD_GIRO * dt;
+      if (teclas['ArrowUp'])    pitch += VELOCIDAD_MIRA * dt;
+      if (teclas['ArrowDown'])  pitch -= VELOCIDAD_MIRA * dt;
+      const lim = Math.PI/2 - 0.05;
+      pitch = Math.max(-lim, Math.min(lim, pitch));
+      aplicarRotacion();
+
+      if (modoCreativo) {
+        if (teclas['Space']) camara.position.y += v * dt;
+        if (teclas['ShiftLeft'] || teclas['ShiftRight']) camara.position.y -= v * dt;
+        velY = 0; enSuelo = true;
+      } else {
+        velY -= GRAVEDAD * dt;
+        camara.position.y += velY * dt;
+        const pies = camara.position.y - ALTURA;
+        if (hayBloqueEn(camara.position.x, pies, camara.position.z)) {
+          camara.position.y = Math.floor(pies) + 1 + ALTURA;
+          velY = 0; enSuelo = true;
+        } else enSuelo = false;
+        if (camara.position.y < -30) { camara.position.set(32, 25, 80); velY = 0; }
+      }
+
+      // Actualizar info de posición
+      const infoPos = document.getElementById('info-pos');
+      infoPos.textContent =
+        'x: ' + camara.position.x.toFixed(1) +
+        ' · y: ' + camara.position.y.toFixed(1) +
+        ' · z: ' + camara.position.z.toFixed(1) +
+        ' · 👁 ' + mallas.size + ' bloques';
+    }
+
+    // ============================================
+    // BUCLE
+    // ============================================
+    let ultimo = performance.now();
+    function loop() {
+      const ahora = performance.now();
+      const dt = Math.min(0.05, (ahora - ultimo) / 1000);
+      ultimo = ahora;
+      actualizar(dt);
+
+      // Aplicar sacudida de cámara si toca
+      let sx = 0, sy = 0, sz = 0;
+      if (ahora < sacudidaFin) {
+        const restante = (sacudidaFin - ahora) / sacudidaDuracion;
+        sx = (Math.random() - 0.5) * sacudidaIntensidad * restante;
+        sy = (Math.random() - 0.5) * sacudidaIntensidad * restante;
+        sz = (Math.random() - 0.5) * sacudidaIntensidad * restante;
+        camara.position.x += sx; camara.position.y += sy; camara.position.z += sz;
+      }
+
+      renderer.render(escena, camara);
+
+      // Restaurar posición (para que la física no se vea afectada)
+      if (sx || sy || sz) {
+        camara.position.x -= sx; camara.position.y -= sy; camara.position.z -= sz;
+      }
+
+      requestAnimationFrame(loop);
+    }
+    loop();
+
+    window.addEventListener('resize', () => {
+      camara.aspect = innerWidth / innerHeight;
+      camara.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>

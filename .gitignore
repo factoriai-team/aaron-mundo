@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Vercel
+.vercel
+
+# Node (por si en el futuro)
+node_modules/
+.env*
+!.env.example
+
+# Backups locales del mundo de Aaron (no subir al repo)
+aaron-mundo-*.json
+aaron-minecraft-*.json
