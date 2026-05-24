@@ -160,6 +160,81 @@
       font-size: 0.9em; display: none;
     }
 
+    /* ===== CONTROLES TÁCTILES (iPad / móvil) ===== */
+    .touch-only { display: none !important; }
+    body.tactil .touch-only { display: flex !important; }
+    body.tactil #ayuda { display: none; }
+
+    #joystick {
+      position: fixed; bottom: 90px; left: 20px;
+      width: 130px; height: 130px;
+      z-index: 15;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    #joystick-base {
+      width: 100%; height: 100%;
+      background: rgba(255,255,255,0.18);
+      border: 3px solid rgba(255,255,255,0.5);
+      border-radius: 50%;
+      position: relative;
+      backdrop-filter: blur(6px);
+    }
+    #joystick-stick {
+      position: absolute;
+      width: 54px; height: 54px;
+      background: rgba(255,255,255,0.55);
+      border: 3px solid rgba(255,255,255,0.95);
+      border-radius: 50%;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .touch-btn {
+      position: fixed;
+      width: 60px; height: 60px;
+      background: rgba(255,255,255,0.22);
+      border: 3px solid rgba(255,255,255,0.6);
+      border-radius: 50%;
+      color: white;
+      font-size: 1.5em;
+      font-weight: bold;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: none;
+      z-index: 15;
+      backdrop-filter: blur(6px);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .touch-btn.activo {
+      background: rgba(255,235,59,0.65);
+      border-color: #ffeb3b;
+      color: #000;
+    }
+
+    #btn-romper { bottom: 90px;  right: 100px; }
+    #btn-poner  { bottom: 165px; right: 100px; }
+    #btn-saltar { bottom: 90px;  right: 20px; }
+    #btn-volar  { bottom: 165px; right: 20px; font-size: 1.1em; }
+    #btn-chat   { top: 48px;     right: 20px; width: 46px; height: 46px; font-size: 1em; }
+    #btn-editor { top: 102px;    right: 20px; width: 46px; height: 46px; font-size: 1em; }
+
+    @media (max-width: 600px) {
+      #joystick { width: 110px; height: 110px; bottom: 80px; left: 10px; }
+      #joystick-stick { width: 44px; height: 44px; }
+      .touch-btn { width: 52px; height: 52px; font-size: 1.2em; }
+      #btn-romper { right: 80px; }
+      #btn-poner  { right: 80px; bottom: 145px; }
+      #btn-volar  { bottom: 145px; }
+    }
+
     /* ===== EDITOR DE TEXTURAS ===== */
     #editor {
       position: fixed; inset: 0;
@@ -307,6 +382,18 @@
     </div>
     <div id="crosshair"></div>
     <div id="hotbar"></div>
+
+    <!-- Controles táctiles (solo se ven en iPad/móvil) -->
+    <div id="joystick" class="touch-only">
+      <div id="joystick-base"><div id="joystick-stick"></div></div>
+    </div>
+    <button id="btn-romper" class="touch-btn touch-only activo" title="Romper bloque">⛏</button>
+    <button id="btn-poner"  class="touch-btn touch-only" title="Poner bloque">🧱</button>
+    <button id="btn-saltar" class="touch-btn touch-only" title="Saltar / Subir">▲</button>
+    <button id="btn-volar"  class="touch-btn touch-only" title="Volar (creativo)">✈</button>
+    <button id="btn-chat"   class="touch-btn touch-only" title="Comandos">💬</button>
+    <button id="btn-editor" class="touch-btn touch-only" title="Editor de texturas">🎨</button>
+
     <div id="chat">
       <div id="chat-historial"></div>
       <input id="chat-input" placeholder="Escribe /help para ver los comandos">
@@ -1544,6 +1631,171 @@
     log('🤪 Prueba /help para ver los COMANDOS LOCOS', 'info');
 
     // ============================================
+    // CONTROLES TÁCTILES (iPad / móvil)
+    // ============================================
+    function activarTactil() {
+      if (document.body.classList.contains('tactil')) return;
+      document.body.classList.add('tactil');
+      log('📱 Modo táctil activado: joystick + botones', 'info');
+    }
+    // Activamos si el "primary pointer" es grueso (dedo)
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) activarTactil();
+    // O cuando llegue el primer touch (red de seguridad)
+    window.addEventListener('touchstart', activarTactil, { once: true, capture: true });
+
+    // ---- JOYSTICK ----
+    const joystick = document.getElementById('joystick');
+    const joystickStick = document.getElementById('joystick-stick');
+    let joystickId = null, joystickX = 0, joystickY = 0;
+
+    function actualizarJoystick(cx, cy) {
+      const r = joystick.getBoundingClientRect();
+      const ox = r.left + r.width / 2, oy = r.top + r.height / 2;
+      let dx = cx - ox, dy = cy - oy;
+      const maxR = r.width / 2 - 15;
+      const len = Math.hypot(dx, dy);
+      if (len > maxR) { dx = dx / len * maxR; dy = dy / len * maxR; }
+      joystickStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+      joystickX = dx / maxR;
+      joystickY = dy / maxR;
+    }
+    joystick.addEventListener('touchstart', (e) => {
+      if (joystickId !== null) return;
+      const t = e.changedTouches[0];
+      joystickId = t.identifier;
+      actualizarJoystick(t.clientX, t.clientY);
+      e.preventDefault();
+    }, { passive: false });
+    window.addEventListener('touchmove', (e) => {
+      if (joystickId === null) return;
+      for (const t of e.changedTouches) if (t.identifier === joystickId) {
+        actualizarJoystick(t.clientX, t.clientY);
+        e.preventDefault();
+      }
+    }, { passive: false });
+    window.addEventListener('touchend', (e) => {
+      for (const t of e.changedTouches) if (t.identifier === joystickId) {
+        joystickId = null; joystickX = 0; joystickY = 0;
+        joystickStick.style.transform = 'translate(-50%, -50%)';
+      }
+    });
+
+    // ---- MIRAR + TAP EN EL LIENZO ----
+    let lookId = null, lookLX = 0, lookLY = 0;
+    let tapInicio = null;
+    let modoPonerTactil = false; // false = romper, true = poner
+
+    lienzo.addEventListener('touchstart', (e) => {
+      // Solo tomamos el primer toque que NO es el del joystick
+      for (const t of e.changedTouches) {
+        if (lookId !== null) break;
+        if (t.identifier === joystickId) continue;
+        lookId = t.identifier;
+        lookLX = t.clientX; lookLY = t.clientY;
+        tapInicio = { x: t.clientX, y: t.clientY, t: performance.now() };
+      }
+      e.preventDefault();
+    }, { passive: false });
+
+    lienzo.addEventListener('touchmove', (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier !== lookId) continue;
+        const dx = t.clientX - lookLX;
+        const dy = t.clientY - lookLY;
+        yaw   -= dx * 0.005;
+        pitch -= dy * 0.005;
+        const lim = Math.PI/2 - 0.05;
+        pitch = Math.max(-lim, Math.min(lim, pitch));
+        aplicarRotacion();
+        lookLX = t.clientX; lookLY = t.clientY;
+        // si movió > 12px ya no es un tap
+        if (tapInicio && Math.hypot(t.clientX - tapInicio.x, t.clientY - tapInicio.y) > 12) tapInicio = null;
+      }
+      e.preventDefault();
+    }, { passive: false });
+
+    lienzo.addEventListener('touchend', (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier !== lookId) continue;
+        if (tapInicio && performance.now() - tapInicio.t < 280) {
+          hacerTapEnLienzo(tapInicio.x, tapInicio.y);
+        }
+        lookId = null; tapInicio = null;
+      }
+    });
+
+    function hacerTapEnLienzo(cx, cy) {
+      if (chat.classList.contains('activo')) return;
+      if (editor.classList.contains('activo')) return;
+      const rect = lienzo.getBoundingClientRect();
+      const x = ((cx - rect.left) / rect.width) * 2 - 1;
+      const y = -((cy - rect.top) / rect.height) * 2 + 1;
+      rayo.setFromCamera(new THREE.Vector2(x, y), camara);
+      const hits = rayo.intersectObjects(Array.from(mallas.values()));
+      if (hits.length === 0) return;
+      const hit = hits[0];
+      if (hit.distance > 20) return;
+      const { x: bx, y: by, z: bz } = hit.object.userData;
+      if (modoPonerTactil) {
+        const n = hit.face.normal;
+        ponerBloque(bloqueElegido, bx + Math.round(n.x), by + Math.round(n.y), bz + Math.round(n.z));
+      } else {
+        quitarBloque(bx, by, bz);
+      }
+    }
+
+    // ---- BOTONES ----
+    const btnRomper = document.getElementById('btn-romper');
+    const btnPoner  = document.getElementById('btn-poner');
+    const btnSaltar = document.getElementById('btn-saltar');
+    const btnVolar  = document.getElementById('btn-volar');
+    const btnChat   = document.getElementById('btn-chat');
+    const btnEditor = document.getElementById('btn-editor');
+
+    function bindBoton(el, fn) {
+      el.addEventListener('touchstart', (e) => { e.preventDefault(); fn(); }, { passive: false });
+      el.addEventListener('click', fn);
+    }
+    bindBoton(btnRomper, () => {
+      modoPonerTactil = false;
+      btnRomper.classList.add('activo');
+      btnPoner.classList.remove('activo');
+    });
+    bindBoton(btnPoner, () => {
+      modoPonerTactil = true;
+      btnPoner.classList.add('activo');
+      btnRomper.classList.remove('activo');
+    });
+    bindBoton(btnSaltar, () => {
+      if (modoCreativo) { velY = 0; camara.position.y += 0.7; }
+      else if (enSuelo) { velY = SALTO; enSuelo = false; }
+    });
+    bindBoton(btnVolar, () => {
+      modoCreativo = !modoCreativo;
+      btnVolar.classList.toggle('activo', modoCreativo);
+      log(modoCreativo ? '✈ Vuelo ACTIVADO' : '🚶 Andando (con gravedad)', 'ok');
+    });
+    bindBoton(btnChat,   () => abrirChat('/'));
+    bindBoton(btnEditor, () => abrirEditor());
+
+    // ---- HOTBAR TAPPABLE ----
+    // (se llama tras reconstruirHotbar para reenganchar los listeners)
+    function engancharHotbarTactil() {
+      hotbar.querySelectorAll('.slot').forEach((slot, i) => {
+        slot.addEventListener('click', () => {
+          if (i < TIPOS_VISIBLES.length) {
+            bloqueElegido = TIPOS_VISIBLES[i];
+            actualizarHotbar();
+          }
+        });
+      });
+    }
+    engancharHotbarTactil();
+    // Si reconstruimos la hotbar (por ejemplo al editar texturas), re-enganchamos
+    const _reconstruirHotbarOrig = reconstruirHotbar;
+    reconstruirHotbar = function() { _reconstruirHotbarOrig(); engancharHotbarTactil(); };
+
+    // ============================================
     // ESTADO PARA COMANDOS LOCOS
     // ============================================
     let discoIntervalo = null;
@@ -1948,12 +2200,22 @@
       if (teclas['KeyS']) dz += 1;
       if (teclas['KeyA']) dx -= 1;
       if (teclas['KeyD']) dx += 1;
+      // Normalizamos el teclado (no es analógico)
+      if (dx !== 0 || dz !== 0) {
+        const len = Math.hypot(dx, dz);
+        dx /= len; dz /= len;
+      }
+      // Sumamos el joystick (es analógico: valores 0..1 según deflexión)
+      if (joystickId !== null) { dx += joystickX; dz += joystickY; }
+      // Limitamos la magnitud final a 1
+      const mag = Math.hypot(dx, dz);
+      if (mag > 1) { dx /= mag; dz /= mag; }
+
       let v = modoCreativo ? VELOCIDAD_VOLAR : VELOCIDAD;
       if (superSayan) v *= 4;
       if (dx !== 0 || dz !== 0) {
-        const len = Math.hypot(dx, dz);
-        moverDerecha(dx/len * v * dt);
-        moverFrente(-dz/len * v * dt);
+        moverDerecha(dx * v * dt);
+        moverFrente(-dz * v * dt);
       }
       if (teclas['ArrowLeft'])  yaw   += VELOCIDAD_GIRO * dt;
       if (teclas['ArrowRight']) yaw   -= VELOCIDAD_GIRO * dt;
