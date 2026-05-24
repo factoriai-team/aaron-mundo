@@ -387,8 +387,8 @@
     <div id="joystick" class="touch-only">
       <div id="joystick-base"><div id="joystick-stick"></div></div>
     </div>
-    <button id="btn-romper" class="touch-btn touch-only activo" title="Romper bloque">⛏</button>
-    <button id="btn-poner"  class="touch-btn touch-only" title="Poner bloque">🧱</button>
+    <button id="btn-romper" class="touch-btn touch-only" title="Romper · pulsa o mantén para minar">⛏</button>
+    <button id="btn-poner"  class="touch-btn touch-only" title="Poner bloque en el crosshair">🧱</button>
     <button id="btn-saltar" class="touch-btn touch-only" title="Saltar / Subir">▲</button>
     <button id="btn-volar"  class="touch-btn touch-only" title="Volar (creativo)">✈</button>
     <button id="btn-chat"   class="touch-btn touch-only" title="Comandos">💬</button>
@@ -667,7 +667,9 @@
     camara.position.set(32, 20, 80);
     camara.rotation.order = 'YXZ';
 
-    const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('lienzo'), antialias: true });
+    const lienzo = document.getElementById('lienzo');
+    const rayo = new THREE.Raycaster();
+    const renderer = new THREE.WebGLRenderer({ canvas: lienzo, antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.setSize(innerWidth, innerHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1680,19 +1682,55 @@
       }
     });
 
-    // ---- MIRAR + TAP EN EL LIENZO ----
+    // ---- ROMPER / PONER (helpers compartidos) ----
+    function realizarAccion(ndcX, ndcY, esPoner) {
+      if (chat.classList.contains('activo')) return;
+      if (typeof editor !== 'undefined' && editor.classList.contains('activo')) return;
+      rayo.setFromCamera(new THREE.Vector2(ndcX, ndcY), camara);
+      const hits = rayo.intersectObjects(Array.from(mallas.values()));
+      if (hits.length === 0) return;
+      const hit = hits[0];
+      if (hit.distance > 20) return;
+      const { x: bx, y: by, z: bz } = hit.object.userData;
+      if (esPoner) {
+        const n = hit.face.normal;
+        ponerBloque(bloqueElegido, bx + Math.round(n.x), by + Math.round(n.y), bz + Math.round(n.z));
+      } else {
+        quitarBloque(bx, by, bz);
+      }
+    }
+    function accionEnPunto(cx, cy, esPoner) {
+      const rect = lienzo.getBoundingClientRect();
+      const ndcX = ((cx - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((cy - rect.top) / rect.height) * 2 + 1;
+      realizarAccion(ndcX, ndcY, esPoner);
+    }
+    function accionEnCrosshair(esPoner) {
+      realizarAccion(0, 0, esPoner);
+    }
+
+    // ---- MIRAR + TAP/LONG-PRESS EN EL LIENZO (estilo Minecraft móvil) ----
     let lookId = null, lookLX = 0, lookLY = 0;
     let tapInicio = null;
-    let modoPonerTactil = false; // false = romper, true = poner
+    let longPressTimer = null;
+    const TAP_LONG_MS = 350;     // > 350ms = long-press → poner
+    const TAP_MAX_PX  = 12;      // si mueve más, deja de ser tap
 
     lienzo.addEventListener('touchstart', (e) => {
-      // Solo tomamos el primer toque que NO es el del joystick
       for (const t of e.changedTouches) {
         if (lookId !== null) break;
         if (t.identifier === joystickId) continue;
         lookId = t.identifier;
         lookLX = t.clientX; lookLY = t.clientY;
         tapInicio = { x: t.clientX, y: t.clientY, t: performance.now() };
+        if (longPressTimer) clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(() => {
+          if (tapInicio) {
+            accionEnPunto(tapInicio.x, tapInicio.y, true); // long-press = PONER
+            tapInicio = null;
+          }
+          longPressTimer = null;
+        }, TAP_LONG_MS);
       }
       e.preventDefault();
     }, { passive: false });
@@ -1708,8 +1746,11 @@
         pitch = Math.max(-lim, Math.min(lim, pitch));
         aplicarRotacion();
         lookLX = t.clientX; lookLY = t.clientY;
-        // si movió > 12px ya no es un tap
-        if (tapInicio && Math.hypot(t.clientX - tapInicio.x, t.clientY - tapInicio.y) > 12) tapInicio = null;
+        // Si movió > 12px ya no es un tap (es arrastre = girar cámara)
+        if (tapInicio && Math.hypot(t.clientX - tapInicio.x, t.clientY - tapInicio.y) > TAP_MAX_PX) {
+          tapInicio = null;
+          if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        }
       }
       e.preventDefault();
     }, { passive: false });
@@ -1717,32 +1758,14 @@
     lienzo.addEventListener('touchend', (e) => {
       for (const t of e.changedTouches) {
         if (t.identifier !== lookId) continue;
-        if (tapInicio && performance.now() - tapInicio.t < 280) {
-          hacerTapEnLienzo(tapInicio.x, tapInicio.y);
+        // Tap corto sin long-press ni movimiento → ROMPER (como Minecraft)
+        if (tapInicio && performance.now() - tapInicio.t < TAP_LONG_MS) {
+          accionEnPunto(tapInicio.x, tapInicio.y, false);
         }
         lookId = null; tapInicio = null;
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
       }
     });
-
-    function hacerTapEnLienzo(cx, cy) {
-      if (chat.classList.contains('activo')) return;
-      if (editor.classList.contains('activo')) return;
-      const rect = lienzo.getBoundingClientRect();
-      const x = ((cx - rect.left) / rect.width) * 2 - 1;
-      const y = -((cy - rect.top) / rect.height) * 2 + 1;
-      rayo.setFromCamera(new THREE.Vector2(x, y), camara);
-      const hits = rayo.intersectObjects(Array.from(mallas.values()));
-      if (hits.length === 0) return;
-      const hit = hits[0];
-      if (hit.distance > 20) return;
-      const { x: bx, y: by, z: bz } = hit.object.userData;
-      if (modoPonerTactil) {
-        const n = hit.face.normal;
-        ponerBloque(bloqueElegido, bx + Math.round(n.x), by + Math.round(n.y), bz + Math.round(n.z));
-      } else {
-        quitarBloque(bx, by, bz);
-      }
-    }
 
     // ---- BOTONES ----
     const btnRomper = document.getElementById('btn-romper');
@@ -1752,20 +1775,49 @@
     const btnChat   = document.getElementById('btn-chat');
     const btnEditor = document.getElementById('btn-editor');
 
-    function bindBoton(el, fn) {
-      el.addEventListener('touchstart', (e) => { e.preventDefault(); fn(); }, { passive: false });
-      el.addEventListener('click', fn);
-    }
-    bindBoton(btnRomper, () => {
-      modoPonerTactil = false;
+    // Botón ⛏ Romper: tap = romper una vez, MANTENER = minar continuo (estilo Minecraft)
+    let _romperT = null, _romperI = null;
+    function iniciarRomperBoton() {
       btnRomper.classList.add('activo');
-      btnPoner.classList.remove('activo');
-    });
-    bindBoton(btnPoner, () => {
-      modoPonerTactil = true;
-      btnPoner.classList.add('activo');
+      accionEnCrosshair(false);
+      _romperT = setTimeout(() => {
+        _romperI = setInterval(() => accionEnCrosshair(false), 180);
+      }, 280);
+    }
+    function detenerRomperBoton() {
       btnRomper.classList.remove('activo');
-    });
+      if (_romperT) { clearTimeout(_romperT); _romperT = null; }
+      if (_romperI) { clearInterval(_romperI); _romperI = null; }
+    }
+    btnRomper.addEventListener('touchstart', (e) => { e.preventDefault(); iniciarRomperBoton(); }, { passive: false });
+    btnRomper.addEventListener('touchend',    detenerRomperBoton);
+    btnRomper.addEventListener('touchcancel', detenerRomperBoton);
+    btnRomper.addEventListener('mousedown',   iniciarRomperBoton);
+    btnRomper.addEventListener('mouseup',     detenerRomperBoton);
+    btnRomper.addEventListener('mouseleave',  detenerRomperBoton);
+
+    // Botón 🧱 Poner: tap único — pone bloque en el crosshair
+    function pulsarPoner() {
+      btnPoner.classList.add('activo');
+      accionEnCrosshair(true);
+      setTimeout(() => btnPoner.classList.remove('activo'), 150);
+    }
+    btnPoner.addEventListener('touchstart', (e) => { e.preventDefault(); pulsarPoner(); }, { passive: false });
+    btnPoner.addEventListener('click', pulsarPoner);
+
+    // Resto de botones — bind con anti-doble-disparo (touch + click sintético en iOS)
+    function bindBoton(el, fn) {
+      let ultimoToque = 0;
+      el.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        ultimoToque = performance.now();
+        fn();
+      }, { passive: false });
+      el.addEventListener('click', () => {
+        if (performance.now() - ultimoToque < 500) return; // ya disparó con touchstart
+        fn();
+      });
+    }
     bindBoton(btnSaltar, () => {
       if (modoCreativo) { velY = 0; camara.position.y += 0.7; }
       else if (enSuelo) { velY = SALTO; enSuelo = false; }
@@ -1777,6 +1829,8 @@
     });
     bindBoton(btnChat,   () => abrirChat('/'));
     bindBoton(btnEditor, () => abrirEditor());
+    // Estado visual inicial del toggle de vuelo
+    if (modoCreativo) btnVolar.classList.add('activo');
 
     // ---- HOTBAR TAPPABLE ----
     // (se llama tras reconstruirHotbar para reenganchar los listeners)
@@ -2160,11 +2214,8 @@
     window.addEventListener('keyup', (e) => { teclas[e.code] = false; });
 
     // ============================================
-    // CLIC: ROMPER / PONER
+    // CLIC: ROMPER / PONER (ratón en desktop)
     // ============================================
-    const rayo = new THREE.Raycaster();
-    const lienzo = document.getElementById('lienzo');
-
     lienzo.addEventListener('mousedown', (e) => {
       if (overlay.style.display !== 'none') return;
       if (chat.classList.contains('activo')) return;
