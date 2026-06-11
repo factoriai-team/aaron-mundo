@@ -1,0 +1,164 @@
+name: Scan Skills (SkillSpector)
+
+# Static security scan of agent skills with NVIDIA SkillSpector.
+# Runs on every change to a SKILL.md or anything under a skills/ tree, plus a
+# manual workflow_dispatch that can scan an arbitrary skill source (git URL,
+# zip, directory or SKILL.md path).
+#
+# Gate: --no-llm (deterministic static analysis only). The job fails if any
+# scanned skill reports risk_score >= 51 (SkillSpector HIGH/CRITICAL band).
+# A SARIF report per scanned skill is uploaded as a build artifact.
+
+on:
+  push:
+    paths:
+      - "**/SKILL.md"
+      - "**/skills/**"
+  pull_request:
+    paths:
+      - "**/SKILL.md"
+      - "**/skills/**"
+  workflow_dispatch:
+    inputs:
+      skill_url:
+        description: "Skill source to scan (git URL, zip, directory or SKILL.md path). Leave empty to scan all SKILL.md in the repo."
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Static scan of changed skills
+    runs-on: ubuntu-latest
+    env:
+      # SkillSpector HIGH band starts at 51 (0-20 LOW, 21-50 MEDIUM,
+      # 51-80 HIGH, 81-100 CRITICAL). Fail the job at HIGH or above.
+      RISK_THRESHOLD: "51"
+      REPORT_DIR: skillspector-reports
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          # SkillSpector requires Python >=3.12,<3.14. This is the scanner's
+          # runtime only and is independent of the app target (static HTML).
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-skillspector-${{ hashFiles('.github/workflows/scan-skills.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-skillspector-
+
+      - name: Install SkillSpector
+        run: |
+          python -m pip install --upgrade pip
+          # Pin a ref here (e.g. @v2.1.3) for fully reproducible scans.
+          pip install "skillspector @ git+https://github.com/NVIDIA/SkillSpector.git"
+
+      - name: Resolve scan targets
+        id: targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$REPORT_DIR"
+
+          url_input="${{ github.event.inputs.skill_url }}"
+          if [ -n "$url_input" ]; then
+            # Manual run against an explicit source — scan it as-is.
+            printf '%s\n' "$url_input" > targets.txt
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual run without a URL — scan every SKILL.md in the repo.
+            git ls-files -- '**/SKILL.md' 'SKILL.md' | sort -u > targets.txt
+          else
+            # push / pull_request — only the SKILL.md files that changed.
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              base_sha="${{ github.event.pull_request.base.sha }}"
+              head_sha="${{ github.event.pull_request.head.sha }}"
+            else
+              base_sha="${{ github.event.before }}"
+              head_sha="${{ github.sha }}"
+            fi
+            # Fall back to the previous commit when the base is missing
+            # (first push to a branch reports an all-zero "before" SHA).
+            if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ] \
+               || ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
+              base_sha="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+            fi
+            git diff --name-only --diff-filter=d "$base_sha" "$head_sha" -- '**/SKILL.md' 'SKILL.md' \
+              | sort -u > targets.txt
+          fi
+
+          echo "Targets to scan:"
+          cat targets.txt || true
+          if [ ! -s targets.txt ]; then
+            echo "No SKILL.md targets to scan."
+            echo "has_targets=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_targets=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Scan skills
+        if: steps.targets.outputs.has_targets == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+
+          slugify() { echo "$1" | tr -c 'A-Za-z0-9._-' '_' | sed 's/__*/_/g;s/^_//;s/_$//'; }
+
+          while IFS= read -r target; do
+            [ -z "$target" ] && continue
+
+            # A SKILL.md path is scanned via its containing skill directory.
+            scan_path="$target"
+            if [ -f "$target" ] && [ "$(basename "$target")" = "SKILL.md" ]; then
+              scan_path="$(dirname "$target")"
+            fi
+
+            slug="$(slugify "$target")"
+            sarif="$REPORT_DIR/${slug}.sarif"
+            json="$REPORT_DIR/${slug}.json"
+
+            echo "::group::Scanning ${target}"
+            # SARIF report (uploaded as artifact).
+            skillspector scan "$scan_path" --no-llm --format sarif --output "$sarif" || true
+            # JSON report (machine-readable, used for the risk gate).
+            skillspector scan "$scan_path" --no-llm --format json --output "$json" || true
+            echo "::endgroup::"
+
+            # risk_score lives under risk_assessment.score (flat keys kept as
+            # a fallback for output-shape drift between SkillSpector versions).
+            score="$(python -c "import json;d=json.load(open('$json'));r=d.get('risk_assessment') or {};print(r.get('score', d.get('risk_score', 0)))" 2>/dev/null || echo 0)"
+            severity="$(python -c "import json;d=json.load(open('$json'));r=d.get('risk_assessment') or {};print(r.get('severity', d.get('risk_severity', 'UNKNOWN')))" 2>/dev/null || echo UNKNOWN)"
+            score="${score:-0}"; severity="${severity:-UNKNOWN}"
+
+            if [ "${score%.*}" -ge "$RISK_THRESHOLD" ]; then
+              echo "::error file=${target}::SkillSpector risk_score=${score} (${severity}) >= ${RISK_THRESHOLD}"
+              failed=1
+            else
+              echo "OK ${target}: risk_score=${score} (${severity})"
+            fi
+          done < targets.txt
+
+          if [ "$failed" -ne 0 ]; then
+            echo "One or more skills failed the SkillSpector risk gate (>= ${RISK_THRESHOLD})."
+            exit 1
+          fi
+
+      - name: Upload SARIF reports
+        if: always() && steps.targets.outputs.has_targets == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skillspector-sarif
+          path: ${{ env.REPORT_DIR }}/*.sarif
+          if-no-files-found: ignore
